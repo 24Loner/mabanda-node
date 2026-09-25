@@ -1,0 +1,1 @@
+-- Assessment calendar is seeded in database/seed.sql using name/year lookups.
