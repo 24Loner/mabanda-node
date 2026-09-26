@@ -36,7 +36,10 @@ const pool = new Pool({
 
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
-const REPORT_DIR = path.join(ROOT, 'storage', 'reports');
+const REPORT_DIR = process.env.NETLIFY
+  ? path.join('/tmp', 'mabanda-reports')
+  : path.join(ROOT, 'storage', 'reports');
+
 fs.mkdirSync(REPORT_DIR, { recursive: true });
 
 app.set('trust proxy', 1);
