@@ -245,7 +245,7 @@ async function saveResult(input,user){
     const oldR=await client.query(`SELECT id,mark,status FROM results WHERE student_id=$1 AND subject_id=$2 AND class_id=$3 AND term_id=$4 AND sequence_id=$5 AND academic_year_id=$6 FOR UPDATE`,
       [Number(input.student_id),Number(input.subject_id),Number(input.class_id),Number(input.term_id),Number(input.sequence_id),Number(input.academic_year_id)]);
     const old=oldR.rows[0];
-    if(old&&['submitted','approved','locked'].includes(old.status)&&user.role!=='administrator'&&!(hasFinalization&&finalized)) throw httpError('This result has been submitted and cannot be modified by a teacher.',423);
+   if(old&&['approved','locked'].includes(old.status)&&user.role!=='administrator'&&!(hasFinalization&&finalized)) throw httpError('This result has been approved or locked and cannot be modified by a teacher.',423);
     let resultId,status=old?.status||'draft';
     if(old){await client.query('UPDATE results SET mark=$1,updated_by=$2,updated_at=NOW() WHERE id=$3',[mark,user.id,old.id]);resultId=Number(old.id);}
     else {const ins=await client.query(`INSERT INTO results(student_id,subject_id,class_id,academic_year_id,term_id,sequence_id,mark,status,entered_by,updated_by)
@@ -1670,6 +1670,107 @@ app.get('/api/me',async(req,res,next)=>{
   }
 });
 
+app.post('/api/me/password',async(req,res,next)=>{
+  try{
+    const user=requireUser(req);
+
+    requireCsrf(req);
+
+    const currentPassword=String(
+      req.body.current_password||''
+    );
+
+    const newPassword=String(
+      req.body.new_password||''
+    );
+
+    const confirmPassword=String(
+      req.body.confirm_password||''
+    );
+
+    if(!currentPassword){
+      throw httpError(
+        'Current password is required.',
+        400
+      );
+    }
+
+    if(newPassword.length<8){
+      throw httpError(
+        'New password must be at least 8 characters.',
+        400
+      );
+    }
+
+    if(newPassword!==confirmPassword){
+      throw httpError(
+        'New passwords do not match.',
+        400
+      );
+    }
+
+    if(newPassword===currentPassword){
+      throw httpError(
+        'New password must be different from your current password.',
+        400
+      );
+    }
+
+    const result=await q(
+      `SELECT password_hash
+       FROM users
+       WHERE id=$1
+         AND is_active=TRUE`,
+      [user.id]
+    );
+
+    if(!result.rowCount){
+      throw httpError(
+        'User account not found.',
+        404
+      );
+    }
+
+    const stored=String(
+      result.rows[0].password_hash||''
+    ).replace(/^\$2y\$/,'$2b$');
+
+    const valid=await bcrypt.compare(
+      currentPassword,
+      stored
+    );
+
+    if(!valid){
+      throw httpError(
+        'Current password is incorrect.',
+        401
+      );
+    }
+
+    const passwordHash=await bcrypt.hash(
+      newPassword,
+      10
+    );
+
+    await q(
+      `UPDATE users
+       SET password_hash=$1
+       WHERE id=$2`,
+      [
+        passwordHash,
+        user.id
+      ]
+    );
+
+    json(res,{
+      message:'Password changed successfully.'
+    });
+
+  }catch(e){
+    next(e);
+  }
+});
+
 app.get('/health',async(req,res,next)=>{
   try{
     await q('SELECT 1');
@@ -2742,6 +2843,123 @@ app.post('/api/admin/teachers',async(req,res,next)=>{
   }
 });
 
+app.get('/api/admin/administrators',async(req,res,next)=>{
+  try{
+    requireRole(req,['administrator']);
+
+    const r=await q(
+      `SELECT
+         u.id,
+         u.full_name,
+         u.email,
+         u.is_active
+       FROM users u
+       INNER JOIN roles r
+         ON r.id=u.role_id
+       WHERE r.name='administrator'
+       ORDER BY u.full_name`
+    );
+
+    json(res,{
+      administrators:r.rows
+    });
+
+  }catch(e){
+    next(e);
+  }
+});
+
+app.post('/api/admin/administrators',async(req,res,next)=>{
+  try{
+    const user=requireRole(req,['administrator']);
+    requireCsrf(req);
+
+    const name=String(req.body.full_name||'').trim();
+    const email=lowerEmail(req.body.email);
+    const password=String(req.body.password||'');
+
+    if(
+      !name ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+      password.length<8
+    ){
+      throw httpError(
+        'Provide a name, valid email, and password of at least 8 characters.',
+        422
+      );
+    }
+
+    const role=(
+      await q(
+        "SELECT id FROM roles WHERE name='administrator' LIMIT 1"
+      )
+    ).rows[0];
+
+    if(!role){
+      throw httpError(
+        'Administrator role is not configured.',
+        500
+      );
+    }
+
+    try{
+      const r=await q(
+        `INSERT INTO users(
+           role_id,
+           full_name,
+           email,
+           password_hash,
+           is_active
+         )
+         VALUES($1,$2,$3,$4,TRUE)
+         RETURNING id`,
+        [
+          role.id,
+          name,
+          email,
+          await bcrypt.hash(password,10)
+        ]
+      );
+
+      await q(
+        `INSERT INTO audit_logs(
+           user_id,
+           action,
+           entity_type,
+           entity_id,
+           new_value
+         )
+         VALUES($1,'created','administrator',$2,$3)`,
+        [
+          user.id,
+          r.rows[0].id,
+          JSON.stringify({
+            full_name:name,
+            email
+          })
+        ]
+      );
+
+      json(res,{
+        administrator_id:Number(r.rows[0].id)
+      },201);
+
+    }catch(e){
+      if(e.code==='23505'){
+        throw httpError(
+          'An account with this email already exists.',
+          409
+        );
+      }
+
+      throw e;
+    }
+
+  }catch(e){
+    next(e);
+  }
+});
+
 app.delete('/api/admin/teachers/:id',async(req,res,next)=>{
   try{
     const user=requireRole(
@@ -2752,38 +2970,415 @@ app.delete('/api/admin/teachers/:id',async(req,res,next)=>{
     requireCsrf(req);
 
     await tx(async c=>{
-      if(
-        !(
-          await c.query(
-            `SELECT u.id
-             FROM users u
-             INNER JOIN roles r
-               ON r.id=u.role_id
-             WHERE u.id=$1
-               AND r.name='teacher'
-               AND u.is_active=TRUE`,
-            [req.params.id]
-          )
-        ).rowCount
-      ){
+      const teacherResult=await c.query(
+        `SELECT u.id,u.full_name,u.email
+         FROM users u
+         INNER JOIN roles r
+           ON r.id=u.role_id
+         WHERE u.id=$1
+           AND r.name='teacher'
+           AND u.is_active=TRUE
+         FOR UPDATE`,
+        [req.params.id]
+      );
+
+      if(!teacherResult.rowCount){
         throw httpError(
           'Active teacher not found.',
           404
         );
       }
 
+      const teacher=teacherResult.rows[0];
+
+      /*
+       * Record the deletion using the administrator's
+       * account before removing the teacher. This keeps
+       * the deletion itself in the audit trail.
+       */
       await c.query(
-        `UPDATE users
-         SET is_active=FALSE
-         WHERE id=$1`,
-        [req.params.id]
+        `INSERT INTO audit_logs(
+           user_id,
+           action,
+           entity_type,
+           entity_id,
+           previous_value,
+           new_value
+         )
+         VALUES(
+           $1,
+           'deleted',
+           'teacher',
+           $2,
+           $3,
+           'deleted'
+         )`,
+        [
+          user.id,
+          teacher.id,
+          JSON.stringify({
+            full_name:teacher.full_name,
+            email:teacher.email
+          })
+        ]
       );
+
+      /*
+       * teacher_subject_classes.teacher_id has
+       * ON DELETE CASCADE, so deleting the user
+       * automatically removes the assignments.
+       *
+       * Migration 006 changed historical references
+       * such as results.entered_by and report_cards.generated_by
+       * to ON DELETE SET NULL, preserving those records.
+       */
+      await c.query(
+        `DELETE FROM users
+         WHERE id=$1`,
+        [teacher.id]
+      );
+    });
+
+    json(res,{
+      message:'Teacher account permanently deleted.'
+    });
+
+  }catch(e){
+    next(e);
+  }
+});
+
+
+// ------------------------------------------------------------
+// ADMIN TEACHER ASSIGNMENTS
+// ------------------------------------------------------------
+
+app.get('/api/admin/assignments',async(req,res,next)=>{
+  try{
+    requireRole(
+      req,
+      ['administrator']
+    );
+
+    const r=await q(
+      `SELECT
+         a.id,
+         a.teacher_id,
+         a.subject_id,
+         a.class_id,
+         u.full_name AS teacher_name,
+         s.name AS subject_name,
+         s.code AS subject_code,
+         c.name AS class_name,
+         ay.label AS academic_year
+       FROM teacher_subject_classes a
+       INNER JOIN users u
+         ON u.id=a.teacher_id
+       INNER JOIN subjects s
+         ON s.id=a.subject_id
+       INNER JOIN classes c
+         ON c.id=a.class_id
+       CROSS JOIN LATERAL (
+         SELECT id,label
+         FROM academic_years
+         WHERE is_current=TRUE
+         ORDER BY id DESC
+         LIMIT 1
+       ) ay
+       WHERE a.is_active=TRUE
+         AND u.is_active=TRUE
+         AND s.is_active=TRUE
+         AND c.is_active=TRUE
+       ORDER BY u.full_name,s.name,c.name`
+    );
+
+    json(res,{
+      assignments:r.rows
+    });
+
+  }catch(e){
+    next(e);
+  }
+});
+
+app.post('/api/admin/assignments',async(req,res,next)=>{
+  try{
+    const user=requireRole(
+      req,
+      ['administrator']
+    );
+
+    requireCsrf(req);
+
+    const teacherId=Number(req.body.teacher_id);
+    const subjectIds=Array.isArray(req.body.subject_ids)
+      ? [...new Set(req.body.subject_ids.map(Number).filter(Number.isInteger))]
+      : [];
+    const allClasses=req.body.all_classes===true;
+    const requestedClassIds=Array.isArray(req.body.class_ids)
+      ? [...new Set(req.body.class_ids.map(Number).filter(Number.isInteger))]
+      : [];
+
+    if(
+      !Number.isInteger(teacherId) ||
+      teacherId<=0 ||
+      !subjectIds.length
+    ){
+      throw httpError(
+        'Select a teacher and at least one subject.',
+        422
+      );
+    }
+
+    const classIds=allClasses
+      ? (
+          await q(
+            'SELECT id FROM classes WHERE is_active=TRUE ORDER BY name'
+          )
+        ).rows.map(row=>Number(row.id))
+      : requestedClassIds;
+
+    if(!classIds.length){
+      throw httpError(
+        'Select at least one class.',
+        422
+      );
+    }
+
+    await tx(async c=>{
+      const teacher=(
+        await c.query(
+          `SELECT u.id
+           FROM users u
+           INNER JOIN roles r
+             ON r.id=u.role_id
+           WHERE u.id=$1
+             AND r.name='teacher'
+             AND u.is_active=TRUE`,
+          [teacherId]
+        )
+      ).rows[0];
+
+      if(!teacher){
+        throw httpError(
+          'Active teacher not found.',
+          404
+        );
+      }
+
+      const subjects=(
+        await c.query(
+          'SELECT id FROM subjects WHERE id=ANY($1::int[]) AND is_active=TRUE',
+          [subjectIds]
+        )
+      ).rows.map(row=>Number(row.id));
+
+      if(subjects.length!==subjectIds.length){
+        throw httpError(
+          'One or more selected subjects are invalid or inactive.',
+          422
+        );
+      }
+
+      const classes=(
+        await c.query(
+          'SELECT id FROM classes WHERE id=ANY($1::int[]) AND is_active=TRUE',
+          [classIds]
+        )
+      ).rows.map(row=>Number(row.id));
+
+      if(classes.length!==classIds.length){
+        throw httpError(
+          'One or more selected classes are invalid or inactive.',
+          422
+        );
+      }
+
+      for(const subjectId of subjectIds){
+        for(const classId of classIds){
+          const assignment=await c.query(
+            `INSERT INTO teacher_subject_classes(
+               teacher_id,
+               subject_id,
+               class_id,
+               is_active
+             )
+             VALUES($1,$2,$3,TRUE)
+             ON CONFLICT(teacher_id,subject_id,class_id)
+             DO UPDATE SET is_active=TRUE
+             RETURNING id`,
+            [
+              teacherId,
+              subjectId,
+              classId
+            ]
+          );
+
+          await c.query(
+            `INSERT INTO audit_logs(
+               user_id,
+               action,
+               entity_type,
+               entity_id
+             )
+             VALUES(
+               $1,
+               'created',
+               'teacher_assignment',
+               $2
+             )`,
+            [
+              user.id,
+              assignment.rows[0].id
+            ]
+          );
+        }
+      }
+    });
+
+    json(res,{
+      message:'Teacher assignments created successfully.'
+    },201);
+
+  }catch(e){
+    next(e);
+  }
+});
+
+app.put('/api/admin/assignments/:id',async(req,res,next)=>{
+  try{
+    const user=requireRole(
+      req,
+      ['administrator']
+    );
+
+    requireCsrf(req);
+
+    const assignmentId=Number(req.params.id);
+    const teacherId=Number(req.body.teacher_id);
+    const subjectId=Number(req.body.subject_id);
+    const classId=Number(req.body.class_id);
+
+    if(
+      !Number.isInteger(assignmentId) ||
+      assignmentId<=0 ||
+      !Number.isInteger(teacherId) ||
+      teacherId<=0 ||
+      !Number.isInteger(subjectId) ||
+      subjectId<=0 ||
+      !Number.isInteger(classId) ||
+      classId<=0
+    ){
+      throw httpError(
+        'Invalid teacher assignment data.',
+        422
+      );
+    }
+
+    await tx(async c=>{
+      const teacher=(
+        await c.query(
+          `SELECT u.id
+           FROM users u
+           INNER JOIN roles r
+             ON r.id=u.role_id
+           WHERE u.id=$1
+             AND r.name='teacher'
+             AND u.is_active=TRUE`,
+          [teacherId]
+        )
+      ).rows[0];
+
+      if(!teacher){
+        throw httpError(
+          'Active teacher not found.',
+          404
+        );
+      }
+
+      const subject=(
+        await c.query(
+          'SELECT id FROM subjects WHERE id=$1 AND is_active=TRUE',
+          [subjectId]
+        )
+      ).rows[0];
+
+      if(!subject){
+        throw httpError(
+          'Active subject not found.',
+          404
+        );
+      }
+
+      const cls=(
+        await c.query(
+          'SELECT id FROM classes WHERE id=$1 AND is_active=TRUE',
+          [classId]
+        )
+      ).rows[0];
+
+      if(!cls){
+        throw httpError(
+          'Active class not found.',
+          404
+        );
+      }
+
+      const existing=(
+        await c.query(
+          `SELECT id
+           FROM teacher_subject_classes
+           WHERE id=$1
+             AND is_active=TRUE`,
+          [assignmentId]
+        )
+      ).rows[0];
+
+      if(!existing){
+        throw httpError(
+          'Active teacher assignment not found.',
+          404
+        );
+      }
+
+      const duplicate=(
+        await c.query(
+          `SELECT id
+           FROM teacher_subject_classes
+           WHERE teacher_id=$1
+             AND subject_id=$2
+             AND class_id=$3
+             AND id<>$4
+           LIMIT 1`,
+          [
+            teacherId,
+            subjectId,
+            classId,
+            assignmentId
+          ]
+        )
+      ).rows[0];
+
+      if(duplicate){
+        throw httpError(
+          'That teacher, subject, and class assignment already exists.',
+          409
+        );
+      }
 
       await c.query(
         `UPDATE teacher_subject_classes
-         SET is_active=FALSE
-         WHERE teacher_id=$1`,
-        [req.params.id]
+         SET teacher_id=$1,
+             subject_id=$2,
+             class_id=$3,
+             is_active=TRUE
+         WHERE id=$4`,
+        [
+          teacherId,
+          subjectId,
+          classId,
+          assignmentId
+        ]
       );
 
       await c.query(
@@ -2795,19 +3390,86 @@ app.delete('/api/admin/teachers/:id',async(req,res,next)=>{
          )
          VALUES(
            $1,
-           'deactivated',
-           'teacher',
+           'updated',
+           'teacher_assignment',
            $2
          )`,
         [
           user.id,
-          req.params.id
+          assignmentId
         ]
       );
     });
 
     json(res,{
-      message:'Teacher account deactivated.'
+      message:'Teacher assignment updated successfully.'
+    });
+
+  }catch(e){
+    next(e);
+  }
+});
+
+app.delete('/api/admin/assignments/:id',async(req,res,next)=>{
+  try{
+    const user=requireRole(
+      req,
+      ['administrator']
+    );
+
+    requireCsrf(req);
+
+    const assignmentId=Number(req.params.id);
+
+    if(
+      !Number.isInteger(assignmentId) ||
+      assignmentId<=0
+    ){
+      throw httpError(
+        'Invalid teacher assignment.',
+        422
+      );
+    }
+
+    await tx(async c=>{
+      const r=await c.query(
+        `UPDATE teacher_subject_classes
+         SET is_active=FALSE
+         WHERE id=$1
+           AND is_active=TRUE
+         RETURNING id`,
+        [assignmentId]
+      );
+
+      if(!r.rowCount){
+        throw httpError(
+          'Active teacher assignment not found.',
+          404
+        );
+      }
+
+      await c.query(
+        `INSERT INTO audit_logs(
+           user_id,
+           action,
+           entity_type,
+           entity_id
+         )
+         VALUES(
+           $1,
+           'deactivated',
+           'teacher_assignment',
+           $2
+         )`,
+        [
+          user.id,
+          assignmentId
+        ]
+      );
+    });
+
+    json(res,{
+      message:'Teacher assignment removed successfully.'
     });
 
   }catch(e){
@@ -3217,6 +3879,263 @@ app.get('/api/classes',async(req,res,next)=>{
 
     json(res,{
       classes:r.rows
+    });
+
+  }catch(e){
+    next(e);
+  }
+});
+
+app.get('/api/admin/subjects',async(req,res,next)=>{
+  try{
+    requireRole(req,['administrator']);
+
+    const r=await q(
+      `SELECT
+         id,
+         name,
+         code,
+         max_mark,
+         coefficient,
+         category,
+         is_active
+       FROM subjects
+       ORDER BY name`
+    );
+
+    json(res,{
+      subjects:r.rows
+    });
+
+  }catch(e){
+    next(e);
+  }
+});
+
+app.post('/api/admin/subjects',async(req,res,next)=>{
+  try{
+    const user=requireRole(req,['administrator']);
+    requireCsrf(req);
+
+    const name=String(req.body.name||'').trim();
+    const code=String(req.body.code||'').trim().toUpperCase();
+    const maxMark=Number(req.body.max_mark);
+    const coefficient=Number(req.body.coefficient);
+    const category=String(req.body.category||'').trim()||null;
+    const isActive=req.body.is_active!==false;
+
+    if(
+      !name ||
+      !code ||
+      !Number.isFinite(maxMark) ||
+      maxMark<=0 ||
+      !Number.isFinite(coefficient) ||
+      coefficient<0
+    ){
+      throw httpError(
+        'Provide a subject name, code, valid max mark, and valid coefficient.',
+        422
+      );
+    }
+
+    try{
+      const r=await q(
+        `INSERT INTO subjects(
+           name,
+           code,
+           max_mark,
+           coefficient,
+           category,
+           is_active
+         )
+         VALUES($1,$2,$3,$4,$5,$6)
+         RETURNING id`,
+        [
+          name,
+          code,
+          maxMark,
+          coefficient,
+          category,
+          isActive
+        ]
+      );
+
+      await q(
+        `INSERT INTO audit_logs(
+           user_id,
+           action,
+           entity_type,
+           entity_id,
+           new_value
+         )
+         VALUES($1,'created','subject',$2,$3)`,
+        [
+          user.id,
+          r.rows[0].id,
+          JSON.stringify({
+            name,
+            code,
+            max_mark:maxMark,
+            coefficient,
+            category,
+            is_active:isActive
+          })
+        ]
+      );
+
+      json(res,{
+        subject_id:Number(r.rows[0].id)
+      },201);
+
+    }catch(e){
+      if(e.code==='23505'){
+        throw httpError(
+          'A subject with this code already exists.',
+          409
+        );
+      }
+
+      throw e;
+    }
+
+  }catch(e){
+    next(e);
+  }
+});
+
+app.put('/api/admin/subjects/:id',async(req,res,next)=>{
+  try{
+    const user=requireRole(req,['administrator']);
+    requireCsrf(req);
+
+    const id=parseIntParam(req.params.id);
+    const name=String(req.body.name||'').trim();
+    const code=String(req.body.code||'').trim().toUpperCase();
+    const maxMark=Number(req.body.max_mark);
+    const coefficient=Number(req.body.coefficient);
+    const category=String(req.body.category||'').trim()||null;
+    const isActive=req.body.is_active!==false;
+
+    if(
+      !name ||
+      !code ||
+      !Number.isFinite(maxMark) ||
+      maxMark<=0 ||
+      !Number.isFinite(coefficient) ||
+      coefficient<0
+    ){
+      throw httpError(
+        'Provide a subject name, code, valid max mark, and valid coefficient.',
+        422
+      );
+    }
+
+    try{
+      const r=await q(
+        `UPDATE subjects
+         SET
+           name=$1,
+           code=$2,
+           max_mark=$3,
+           coefficient=$4,
+           category=$5,
+           is_active=$6
+         WHERE id=$7
+         RETURNING id`,
+        [
+          name,
+          code,
+          maxMark,
+          coefficient,
+          category,
+          isActive,
+          id
+        ]
+      );
+
+      if(!r.rowCount){
+        throw httpError('Subject not found.',404);
+      }
+
+      await q(
+        `INSERT INTO audit_logs(
+           user_id,
+           action,
+           entity_type,
+           entity_id,
+           new_value
+         )
+         VALUES($1,'updated','subject',$2,$3)`,
+        [
+          user.id,
+          id,
+          JSON.stringify({
+            name,
+            code,
+            max_mark:maxMark,
+            coefficient,
+            category,
+            is_active:isActive
+          })
+        ]
+      );
+
+      json(res,{
+        subject_id:id
+      });
+
+    }catch(e){
+      if(e.code==='23505'){
+        throw httpError(
+          'A subject with this code already exists.',
+          409
+        );
+      }
+
+      throw e;
+    }
+
+  }catch(e){
+    next(e);
+  }
+});
+
+app.delete('/api/admin/subjects/:id',async(req,res,next)=>{
+  try{
+    const user=requireRole(req,['administrator']);
+    requireCsrf(req);
+
+    const id=parseIntParam(req.params.id);
+
+    const r=await q(
+      `UPDATE subjects
+       SET is_active=FALSE
+       WHERE id=$1
+       RETURNING id,name,code`,
+      [id]
+    );
+
+    if(!r.rowCount){
+      throw httpError('Subject not found.',404);
+    }
+
+    await q(
+      `INSERT INTO audit_logs(
+         user_id,
+         action,
+         entity_type,
+         entity_id,
+         new_value
+       )
+       VALUES($1,'deactivated','subject',$2,'inactive')`,
+      [
+        user.id,
+        id
+      ]
+    );
+
+    json(res,{
+      message:'Subject deactivated successfully.'
     });
 
   }catch(e){
