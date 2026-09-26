@@ -12,7 +12,17 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const archiver = require('archiver');
-const puppeteer = require('puppeteer');
+let puppeteerPromise;
+
+async function getPuppeteer(){
+  if(!puppeteerPromise){
+    puppeteerPromise = import('puppeteer');
+  }
+
+  const module = await puppeteerPromise;
+
+  return module.default || module;
+}
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -1353,6 +1363,8 @@ async function annualReportData(studentId, classId, yearId) {
 
 async function generateAnnual(studentId,classId,yearId){
   const {html}=await annualReportData(studentId,classId,yearId);
+  const puppeteer=await getPuppeteer();
+
   const browser=await puppeteer.launch({
     headless:'new',
     executablePath:process.env.PUPPETEER_EXECUTABLE_PATH ||
