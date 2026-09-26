@@ -36,7 +36,13 @@ const pool = new Pool({
 
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
-const REPORT_DIR = process.env.NETLIFY
+const IS_SERVERLESS = Boolean(
+  process.env.NETLIFY ||
+  process.env.AWS_LAMBDA_FUNCTION_VERSION ||
+  process.env.AWS_EXECUTION_ENV
+);
+
+const REPORT_DIR = IS_SERVERLESS
   ? path.join('/tmp', 'mabanda-reports')
   : path.join(ROOT, 'storage', 'reports');
 
