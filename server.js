@@ -4420,21 +4420,25 @@ app.use((err,req,res,next)=>{
 // START SERVER
 // ------------------------------------------------------------
 
-app.listen(
-  PORT,
-  async()=>{
-    try{
-      await q('SELECT 1');
+if (require.main === module) {
+  app.listen(
+    PORT,
+    async()=>{
+      try{
+        await q('SELECT 1');
 
-      console.log(
-        `Mabanda Node.js server listening on http://localhost:${PORT}`
-      );
+        console.log(
+          `Mabanda Node.js server listening on http://localhost:${PORT}`
+        );
 
-    }catch(e){
-      console.error(
-        'Database connection failed:',
-        e.message
-      );
+      }catch(e){
+        console.error(
+          'Database connection failed:',
+          e.message
+        );
+      }
     }
-  }
-);
+  );
+}
+
+module.exports = app;
