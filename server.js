@@ -1,4 +1,4 @@
-
+﻿
 'use strict';
 
 require('dotenv').config();
@@ -594,20 +594,25 @@ async function annualReportData(studentId, classId, yearId) {
       const marks = [];
 
 
-      for (const period of rows) {
+      for (const period of rows) {        const periodId = Number(period.id);
+        const hasMark = Object.prototype.hasOwnProperty.call(
+          subject.marks,
+          periodId
+        );
 
-        const mark =
-          subject.marks[Number(period.id)] ?? null;
+        const mark = hasMark
+          ? Number(subject.marks[periodId])
+          : null;
 
         marks.push(mark);
 
         tableRows += `
           <td>
             ${
-              mark === null
+              mark === null || Number.isNaN(mark)
                 ? '—'
                 : escapeHtml(
-                    `${mark}/${subject.max_mark}`
+                    `${Number.isInteger(mark) ? mark : mark.toFixed(2)}/${subject.max_mark}`
                   )
             }
           </td>
@@ -619,26 +624,26 @@ async function annualReportData(studentId, classId, yearId) {
       // TERM AVERAGE
       // --------------------------------------------------------
 
-      const availableMarks =
-        marks.filter(
-          mark => mark !== null
+      const calculationMarks =
+        marks.map(
+          mark => mark === null ? 0 : mark
         );
 
       const termAverage =
-        availableMarks.length
+        calculationMarks.length
           ? round2(
-              availableMarks.reduce(
+              calculationMarks.reduce(
                 (total, mark) => total + mark,
                 0
               )
               /
-              availableMarks.length
+              calculationMarks.length
               /
               subject.max_mark
               *
               100
             )
-          : null;
+          : 0;
 
       termAverages.push(termAverage);
 
@@ -662,8 +667,8 @@ async function annualReportData(studentId, classId, yearId) {
     // ----------------------------------------------------------
 
     const annualValues =
-      termAverages.filter(
-        value => value !== null
+      termAverages.map(
+        value => value === null ? 0 : value
       );
 
     const annualAverage =
@@ -676,7 +681,7 @@ async function annualReportData(studentId, classId, yearId) {
             /
             annualValues.length
           )
-        : null;
+        : 0;
 
 
     // ----------------------------------------------------------
@@ -1453,6 +1458,31 @@ async function generateReport(user,studentId,classId,yearId,termId,sequenceId){
   return file;
 }
 
+async function launchReportBrowser(){
+  const puppeteer=await getPuppeteer();
+
+  if(IS_SERVERLESS){
+    const chromium=await getChromium();
+
+    return puppeteer.launch({
+      args:chromium.args,
+      executablePath:await chromium.executablePath(),
+      headless:chromium.headless
+    });
+  }
+
+  return puppeteer.launch({
+    headless:'new',
+    executablePath:process.env.PUPPETEER_EXECUTABLE_PATH ||
+      (fs.existsSync('/usr/bin/chromium')
+        ? '/usr/bin/chromium'
+        : undefined),
+    args:[
+      '--no-sandbox',
+      '--disable-setuid-sandbox'
+    ]
+  });
+}
 async function generateClassZip(user,classId,yearId,termId,sequenceId){
   if(!(await canAccessReports(user))){
     throw httpError(
@@ -1489,36 +1519,75 @@ async function generateClassZip(user,classId,yearId,termId,sequenceId){
 
   const done=new Promise((resolve,reject)=>{
     output.on('close',resolve);
+    output.on('error',reject);
     archive.on('error',reject);
   });
 
   archive.pipe(output);
 
-  for(const s of students){
-    const pdf=await generateReport(
-      user,
-      Number(s.id),
-      classId,
-      yearId,
-      termId,
-      sequenceId
-    );
+  const browser=await launchReportBrowser();
 
-    archive.file(
-      pdf,
-      {
-        name:`report-card-${s.student_id}.pdf`
+  try{
+    const page=await browser.newPage();
+
+    try{
+      for(const s of students){
+        console.log(
+          `[REPORT] generating student ${s.student_id}`
+        );
+
+        const {html}=await annualReportData(
+          Number(s.id),
+          classId,
+          yearId
+        );
+
+        const pdf=path.join(
+          REPORT_DIR,
+          `annual-report-${s.id}-${yearId}.pdf`
+        );
+
+        await page.setContent(
+          html,
+          {waitUntil:'domcontentloaded',timeout:0}
+        );
+
+        await page.pdf({
+          path:pdf,
+          format:'Letter',
+          landscape:false,
+          printBackground:true,
+          margin:{
+            top:'0.5in',
+            right:'0.5in',
+            bottom:'0.5in',
+            left:'0.5in'
+          }
+        });
+
+        archive.file(
+          pdf,
+          {
+            name:`report-card-${s.student_id}.pdf`
+          }
+        );
+
+        console.log(
+          `[REPORT] completed student ${s.student_id}`
+        );
       }
-    );
+    }finally{
+      await page.close();
+    }
+
+    await archive.finalize();
+    await done;
+
+    return zipFile;
+  }finally{
+    await browser.close();
   }
-
-  await archive.finalize();
-  await done;
-
-  return zipFile;
 }
-
-
 // ------------------------------------------------------------
 // AUTH
 // ------------------------------------------------------------
@@ -4506,3 +4575,15 @@ if (require.main === module) {
 }
 
 module.exports = app;
+
+
+
+
+
+
+
+
+
+
+
+
