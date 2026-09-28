@@ -253,19 +253,105 @@ async function hydrateReports() {
       const response = await apiRequest(`/api/admin/reports?${params}`);
       list.innerHTML = response.reports.map(item => `<tr><td>${item.position}</td><td class="student-name">${escapeHtml(item.student_name)}</td><td>${escapeHtml(item.student_number)}</td><td>${escapeHtml(item.class_name)}</td><td>${item.subjects}</td><td class="student-name">${item.average}%</td><td><span class="status ${item.submitted ? 'approved' : 'pending'}">${item.submitted ? 'Ready' : 'Incomplete'}</span></td><td><button class="outline-btn report-download" data-student="${item.student_id}" data-class="${item.class_id}">Print PDF</button></td></tr>`).join('') || '<tr><td colspan="8" class="empty">No compiled marks found for these filters.</td></tr>';
       summary.textContent = `${response.reports.length} compiled student report${response.reports.length === 1 ? '' : 's'} found.`;
-      list.querySelectorAll('.report-download').forEach(button => button.addEventListener('click', async () => {
-        try {
-          const blob = await apiRequest('/api/report-cards', { method: 'POST', body: JSON.stringify({ student_id: Number(button.dataset.student), class_id: Number(button.dataset.class), academic_year_id: Number(yearSelect.value), term_id: Number(termSelect.value), sequence_id: Number(sequenceSelect.value) }) });
-          const link = document.createElement('a');
-          const objectUrl = URL.createObjectURL(blob);
-          link.href = objectUrl;
-          link.download = `report-card-${button.dataset.student}.pdf`;
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
+     list.querySelectorAll('.report-download').forEach(button =>
+  button.addEventListener('click', async () => {
+    const originalText = button.textContent;
+
+    // Open the mobile PDF window immediately while this is still
+    // a direct user interaction. This prevents popup blockers
+    // from blocking the PDF window after the async request.
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(
+      navigator.userAgent
+    );
+
+    let pdfWindow = null;
+
+    if (isMobile) {
+      pdfWindow = window.open('', '_blank');
+
+      if (!pdfWindow) {
+        alert(
+          'Your browser blocked the PDF window. Please allow pop-ups for this site and try again.'
+        );
+        return;
+      }
+
+      pdfWindow.document.title = 'Preparing report card...';
+      pdfWindow.document.body.innerHTML = `
+        <div style="
+          font-family:system-ui,sans-serif;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          min-height:100vh;
+          text-align:center;
+          padding:24px;
+          box-sizing:border-box;
+        ">
+          <div>
+            <h2>Preparing report card...</h2>
+            <p>Please wait while the PDF is generated.</p>
+          </div>
+        </div>
+      `;
+    }
+
+    try {
+      button.disabled = true;
+      button.textContent = 'Preparing PDF...';
+
+      const blob = await apiRequest('/api/report-cards', {
+        method: 'POST',
+        body: JSON.stringify({
+          student_id: Number(button.dataset.student),
+          class_id: Number(button.dataset.class),
+          academic_year_id: Number(yearSelect.value),
+          term_id: Number(termSelect.value),
+          sequence_id: Number(sequenceSelect.value)
+        })
+      });
+
+      const objectUrl = URL.createObjectURL(blob);
+      const filename = `report-card-${button.dataset.student}.pdf`;
+
+      if (isMobile) {
+        // The window was opened synchronously from the user's tap,
+        // so mobile browsers are much less likely to block it.
+        pdfWindow.location.href = objectUrl;
+
+        // Give the browser plenty of time to load/read the PDF.
+        setTimeout(() => {
           URL.revokeObjectURL(objectUrl);
-        } catch (error) { alert(error.message); }
-      }));
+        }, 60000);
+      } else {
+        // Desktop: keep the existing direct-download behavior.
+        const link = document.createElement('a');
+
+        link.href = objectUrl;
+        link.download = filename;
+        link.style.display = 'none';
+
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        setTimeout(() => {
+          URL.revokeObjectURL(objectUrl);
+        }, 1000);
+      }
+
+    } catch (error) {
+      if (pdfWindow && !pdfWindow.closed) {
+        pdfWindow.close();
+      }
+
+      alert(error.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  })
+);
     };
     yearSelect.addEventListener('change', loadTerms);
     termSelect.addEventListener('change', loadSequences);
@@ -287,22 +373,96 @@ async function hydrateReports() {
     });
     classSelect.addEventListener('change', () => { bulkButton.disabled = !classSelect.value; });
     bulkButton.addEventListener('click', async () => {
-      if (!classSelect.value) return;
-      bulkButton.disabled = true;
-      bulkButton.textContent = 'Preparing PDFs...';
-      try {
-        const blob = await apiRequest('/api/report-cards/bulk', { method: 'POST', body: JSON.stringify({ class_id: Number(classSelect.value), academic_year_id: Number(yearSelect.value), term_id: Number(termSelect.value), sequence_id: Number(sequenceSelect.value) }) });
-        const link = document.createElement('a');
-        const objectUrl = URL.createObjectURL(blob);
-        link.href = objectUrl;
-        link.download = `class-report-cards-${classSelect.value}.zip`;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(objectUrl);
-      } catch (error) { alert(error.message); }
-      finally { bulkButton.disabled = !classSelect.value; bulkButton.textContent = 'Print all class report cards'; }
+  if (!classSelect.value) return;
+
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(
+    navigator.userAgent
+  );
+
+  // Open the window immediately from the user's tap so that
+  // mobile popup blockers do not reject it later.
+  let downloadWindow = null;
+
+  if (isMobile) {
+    downloadWindow = window.open('', '_blank');
+
+    if (!downloadWindow) {
+      alert(
+        'Your browser blocked the download window. Please allow pop-ups for this site and try again.'
+      );
+      return;
+    }
+
+    downloadWindow.document.title = 'Preparing report cards...';
+    downloadWindow.document.body.innerHTML = `
+      <div style="
+        font-family:system-ui,sans-serif;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        min-height:100vh;
+        text-align:center;
+        padding:24px;
+        box-sizing:border-box;
+      ">
+        <div>
+          <h2>Preparing class report cards...</h2>
+          <p>Please wait while the ZIP file is generated.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  bulkButton.disabled = true;
+  bulkButton.textContent = 'Preparing PDFs...';
+
+  try {
+    const blob = await apiRequest('/api/report-cards/bulk', {
+      method: 'POST',
+      body: JSON.stringify({
+        class_id: Number(classSelect.value),
+        academic_year_id: Number(yearSelect.value),
+        term_id: Number(termSelect.value),
+        sequence_id: Number(sequenceSelect.value)
+      })
     });
+
+    const objectUrl = URL.createObjectURL(blob);
+    const filename = `class-report-cards-${classSelect.value}.zip`;
+
+    if (isMobile) {
+      downloadWindow.location.href = objectUrl;
+
+      setTimeout(() => {
+        URL.revokeObjectURL(objectUrl);
+      }, 60000);
+    } else {
+      const link = document.createElement('a');
+
+      link.href = objectUrl;
+      link.download = filename;
+      link.style.display = 'none';
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      setTimeout(() => {
+        URL.revokeObjectURL(objectUrl);
+      }, 1000);
+    }
+
+  } catch (error) {
+    if (downloadWindow && !downloadWindow.closed) {
+      downloadWindow.close();
+    }
+
+    alert(error.message);
+  } finally {
+    bulkButton.disabled = !classSelect.value;
+    bulkButton.textContent = 'Print all class report cards';
+  }
+});
     await loadTerms();
   } catch (error) { list.innerHTML = `<tr><td colspan="8" class="empty" style="color:var(--danger)">${escapeHtml(error.message)}</td></tr>`; }
 }
