@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const archiver = require('archiver');
 let puppeteerPromise;
+let chromiumPromise;
 
 async function getPuppeteer(){
   if(!puppeteerPromise){
@@ -20,6 +21,16 @@ async function getPuppeteer(){
   }
 
   const module = await puppeteerPromise;
+
+  return module.default || module;
+}
+
+async function getChromium(){
+  if(!chromiumPromise){
+    chromiumPromise = import('@sparticuz/chromium');
+  }
+
+  const module = await chromiumPromise;
 
   return module.default || module;
 }
@@ -1374,12 +1385,26 @@ async function generateAnnual(studentId,classId,yearId){
   const {html}=await annualReportData(studentId,classId,yearId);
   const puppeteer=await getPuppeteer();
 
-  const browser=await puppeteer.launch({
+let browser;
+
+if(IS_SERVERLESS){
+  const chromium=await getChromium();
+
+  browser=await puppeteer.launch({
+    args:chromium.args,
+    executablePath:await chromium.executablePath(),
+    headless:chromium.headless
+  });
+}else{
+  browser=await puppeteer.launch({
     headless:'new',
     executablePath:process.env.PUPPETEER_EXECUTABLE_PATH ||
-      (fs.existsSync('/usr/bin/chromium')?'/usr/bin/chromium':undefined),
+      (fs.existsSync('/usr/bin/chromium')
+        ? '/usr/bin/chromium'
+        : undefined),
     args:['--no-sandbox','--disable-setuid-sandbox']
   });
+}
 
   try{
     const page=await browser.newPage();
