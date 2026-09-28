@@ -1,9 +1,35 @@
-const {
-  getJob,
-  getZip
-} = require('../report-jobs');
+const { stream } = require('@netlify/functions');
+const { getStore } = require('@netlify/blobs');
 
-exports.handler = async function(event) {
+const JOB_STORE = 'mabanda-report-jobs';
+const FILE_STORE = 'mabanda-report-files';
+
+const blobOptions = {
+  siteID: process.env.NETLIFY_SITE_ID,
+  token: process.env.NETLIFY_AUTH_TOKEN
+};
+
+function jobsStore() {
+  return getStore(JOB_STORE, blobOptions);
+}
+
+function filesStore() {
+  return getStore(FILE_STORE, blobOptions);
+}
+
+async function getJob(jobId) {
+  return jobsStore().get(jobId, {
+    type: 'json'
+  });
+}
+
+async function getZip(jobId) {
+  return filesStore().get(jobId, {
+    type: 'stream'
+  });
+}
+
+exports.handler = stream(async function(event) {
   try {
     const params = event.queryStringParameters || {};
 
@@ -67,7 +93,8 @@ exports.handler = async function(event) {
         headers: {
           'Content-Type': 'text/plain; charset=utf-8'
         },
-        body: `Report is not ready. Current status: ${job.status}`
+        body:
+          `Report is not ready. Current status: ${job.status}`
       };
     }
 
@@ -83,34 +110,20 @@ exports.handler = async function(event) {
       };
     }
 
-    const chunks = [];
-
-    for await (const chunk of zipStream) {
-      chunks.push(
-        Buffer.isBuffer(chunk)
-          ? chunk
-          : Buffer.from(chunk)
-      );
-    }
-
-    const zipBuffer = Buffer.concat(chunks);
-
     const filename =
       job.filename ||
       `class-report-cards-${job.classId}.zip`;
 
     return {
       statusCode: 200,
-      isBase64Encoded: true,
       headers: {
         'Content-Type': 'application/zip',
         'Content-Disposition':
           `attachment; filename="${filename}"`,
-        'Content-Length': String(zipBuffer.length),
         'Cache-Control': 'private, no-store',
         'X-Report-Job-Id': jobId
       },
-      body: zipBuffer.toString('base64')
+      body: zipStream
     };
 
   } catch (error) {
@@ -127,4 +140,4 @@ exports.handler = async function(event) {
       body: 'Unable to download report cards.'
     };
   }
-};
+});
