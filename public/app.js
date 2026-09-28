@@ -1,4 +1,4 @@
-﻿const app = document.querySelector('#app');
+const app = document.querySelector('#app');
 
 const state = { loggedIn: false, view: 'dashboard' };
 const SCHOOL_NAME = 'ATLANTIC BILINGUAL COLLEGE MABANDA';
@@ -371,98 +371,483 @@ async function hydrateReports() {
       searchInput.value = '';
       loadReports();
     });
-    classSelect.addEventListener('change', () => { bulkButton.disabled = !classSelect.value; });
-    bulkButton.addEventListener('click', async () => {
-  if (!classSelect.value) return;
-
-  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(
-    navigator.userAgent
-  );
-
-  // Open the window immediately from the user's tap so that
-  // mobile popup blockers do not reject it later.
-  let downloadWindow = null;
-
-  if (isMobile) {
-    downloadWindow = window.open('', '_blank');
-
-    if (!downloadWindow) {
-      alert(
-        'Your browser blocked the download window. Please allow pop-ups for this site and try again.'
-      );
-      return;
-    }
-
-    downloadWindow.document.title = 'Preparing report cards...';
-    downloadWindow.document.body.innerHTML = `
-      <div style="
-        font-family:system-ui,sans-serif;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        min-height:100vh;
-        text-align:center;
-        padding:24px;
-        box-sizing:border-box;
-      ">
-        <div>
-          <h2>Preparing class report cards...</h2>
-          <p>Please wait while the ZIP file is generated.</p>
-        </div>
-      </div>
-    `;
-  }
-
-  bulkButton.disabled = true;
-  bulkButton.textContent = 'Preparing PDFs...';
-
-  try {
-    const blob = await apiRequest('/api/report-cards/bulk', {
-      method: 'POST',
-      body: JSON.stringify({
-        class_id: Number(classSelect.value),
-        academic_year_id: Number(yearSelect.value),
-        term_id: Number(termSelect.value),
-        sequence_id: Number(sequenceSelect.value)
-      })
+    classSelect.addEventListener('change', () => {
+      bulkButton.disabled = !classSelect.value;
     });
 
-    const objectUrl = URL.createObjectURL(blob);
-    const filename = `class-report-cards-${classSelect.value}.zip`;
+    let activeReportPoll = null;
 
-    if (isMobile) {
-      downloadWindow.location.href = objectUrl;
+    const closeReportProgress = () => {
+      const panel = document.querySelector('#report-job-progress');
 
-      setTimeout(() => {
-        URL.revokeObjectURL(objectUrl);
-      }, 60000);
-    } else {
-      const link = document.createElement('a');
+      if (panel) {
+        panel.remove();
+      }
+    };
 
-      link.href = objectUrl;
-      link.download = filename;
+    const showReportProgress = (job) => {
+      let panel = document.querySelector('#report-job-progress');
+
+      if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'report-job-progress';
+
+        panel.style.cssText = `
+          position:fixed;
+          inset:0;
+          z-index:9999;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          padding:20px;
+          background:rgba(15,23,42,.55);
+          backdrop-filter:blur(4px);
+          box-sizing:border-box;
+        `;
+
+        document.body.appendChild(panel);
+      }
+
+      const total = Number(job.totalStudents || 0);
+      const completed = Number(job.completedStudents || 0);
+
+      const percentage = total
+        ? Math.min(
+            100,
+            Math.round((completed / total) * 100)
+          )
+        : 0;
+
+      const currentStudent =
+        job.currentStudentName ||
+        job.currentStudentId ||
+        'Preparing report cards...';
+
+      let title = 'Generating class report cards';
+      let message = 'Please keep this page open while the reports are being generated.';
+
+      if (job.status === 'queued') {
+        title = 'Report generation queued';
+        message = 'The report-generation worker is starting...';
+      }
+
+      if (job.status === 'processing') {
+        title = 'Generating class report cards';
+        message = `Currently processing: ${escapeHtml(currentStudent)}`;
+      }
+
+      if (job.status === 'ready') {
+        title = 'Report cards ready';
+        message = 'Your ZIP file is ready. Starting the download...';
+      }
+
+      if (job.status === 'failed') {
+        title = 'Report generation failed';
+        message = escapeHtml(
+          job.error ||
+          'The report-generation job failed.'
+        );
+      }
+
+      if (job.status === 'expired') {
+        title = 'Report job expired';
+        message = 'This report-generation job has expired. Please start a new one.';
+      }
+
+      panel.innerHTML = `
+        <div style="
+          width:min(520px,100%);
+          background:var(--panel,#ffffff);
+          border:1px solid rgba(148,163,184,.25);
+          border-radius:18px;
+          box-shadow:0 24px 70px rgba(15,23,42,.25);
+          padding:26px;
+          box-sizing:border-box;
+          font-family:inherit;
+        ">
+          <div style="
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+            gap:16px;
+            margin-bottom:20px;
+          ">
+            <div>
+              <div style="
+                font-size:12px;
+                font-weight:700;
+                letter-spacing:.08em;
+                text-transform:uppercase;
+                color:var(--muted,#64748b);
+                margin-bottom:7px;
+              ">Report cards</div>
+
+              <h2 style="
+                margin:0;
+                font-size:22px;
+                line-height:1.2;
+                color:var(--text,#0f172a);
+              ">
+                ${title}
+              </h2>
+            </div>
+
+            <div style="
+              min-width:52px;
+              height:52px;
+              border-radius:14px;
+              display:flex;
+              align-items:center;
+              justify-content:center;
+              background:rgba(59,130,246,.10);
+              color:var(--primary,#2563eb);
+              font-size:15px;
+              font-weight:800;
+            ">
+              ${percentage}%
+            </div>
+          </div>
+
+          <div style="
+            height:10px;
+            width:100%;
+            overflow:hidden;
+            border-radius:999px;
+            background:rgba(148,163,184,.20);
+            margin-bottom:14px;
+          ">
+            <div style="
+              height:100%;
+              width:${percentage}%;
+              border-radius:999px;
+              background:var(--primary,#2563eb);
+              transition:width .35s ease;
+            "></div>
+          </div>
+
+          <div style="
+            display:flex;
+            justify-content:space-between;
+            gap:12px;
+            margin-bottom:16px;
+            font-size:14px;
+          ">
+            <strong style="color:var(--text,#0f172a)">
+              ${completed} / ${total}
+            </strong>
+
+            <span style="color:var(--muted,#64748b)">
+              ${job.status === 'processing' ? 'Processing' : escapeHtml(job.status || 'Starting')}
+            </span>
+          </div>
+
+          <div style="
+            padding:14px;
+            border-radius:12px;
+            background:rgba(148,163,184,.08);
+            color:var(--muted,#64748b);
+            font-size:13px;
+            line-height:1.55;
+          ">
+            ${message}
+          </div>
+
+          ${
+            job.status === 'failed' ||
+            job.status === 'expired'
+              ? `
+                <button
+                  type="button"
+                  id="close-report-progress"
+                  class="outline-btn"
+                  style="width:100%;margin-top:16px"
+                >
+                  Close
+                </button>
+              `
+              : ''
+          }
+        </div>
+      `;
+
+      const closeButton =
+        panel.querySelector('#close-report-progress');
+
+      if (closeButton) {
+        closeButton.addEventListener(
+          'click',
+          () => {
+            closeReportProgress();
+          }
+        );
+      }
+    };
+
+    const downloadReportZip = (
+      downloadUrl,
+      filename,
+      mobileWindow
+    ) => {
+      if (!downloadUrl) {
+        throw new Error(
+          'The report ZIP is ready, but no download link was returned.'
+        );
+      }
+
+      if (mobileWindow && !mobileWindow.closed) {
+        mobileWindow.location.href = downloadUrl;
+        return;
+      }
+
+      const link =
+        document.createElement('a');
+
+      link.href = downloadUrl;
+      link.download =
+        filename ||
+        'class-report-cards.zip';
+
       link.style.display = 'none';
 
       document.body.appendChild(link);
       link.click();
       link.remove();
+    };
 
-      setTimeout(() => {
-        URL.revokeObjectURL(objectUrl);
-      }, 1000);
-    }
+    const pollReportJob = async (
+      jobId,
+      mobileWindow
+    ) => {
+      if (activeReportPoll) {
+        clearInterval(activeReportPoll);
+        activeReportPoll = null;
+      }
 
-  } catch (error) {
-    if (downloadWindow && !downloadWindow.closed) {
-      downloadWindow.close();
-    }
+      let finished = false;
 
-    alert(error.message);
-  } finally {
-    bulkButton.disabled = !classSelect.value;
-    bulkButton.textContent = 'Print all class report cards';
-  }
-});
+      const checkStatus = async () => {
+        if (finished) return;
+
+        try {
+          const job = await apiRequest(
+            `/api/report-cards/bulk/status/${encodeURIComponent(jobId)}`
+          );
+
+          showReportProgress(job);
+
+          if (
+            job.status === 'queued' ||
+            job.status === 'processing'
+          ) {
+            return;
+          }
+
+          finished = true;
+
+          if (activeReportPoll) {
+            clearInterval(activeReportPoll);
+            activeReportPoll = null;
+          }
+
+          if (job.status === 'ready') {
+            bulkButton.textContent =
+              'Download ready';
+
+            await new Promise(
+              resolve => setTimeout(resolve, 500)
+            );
+
+            downloadReportZip(
+              job.downloadUrl,
+              job.filename,
+              mobileWindow
+            );
+
+            setTimeout(() => {
+              closeReportProgress();
+            }, 1200);
+
+            return;
+          }
+
+          if (mobileWindow && !mobileWindow.closed) {
+            mobileWindow.close();
+          }
+
+          bulkButton.disabled =
+            !classSelect.value;
+
+          showReportProgress(job);
+
+        } catch (error) {
+          finished = true;
+
+          if (activeReportPoll) {
+            clearInterval(activeReportPoll);
+            activeReportPoll = null;
+          }
+
+          if (
+            mobileWindow &&
+            !mobileWindow.closed
+          ) {
+            mobileWindow.close();
+          }
+
+          closeReportProgress();
+
+          alert(
+            error.message ||
+            'Unable to check report generation status.'
+          );
+
+          bulkButton.disabled =
+            !classSelect.value;
+
+          bulkButton.textContent =
+            'Print all class report cards';
+        }
+      };
+
+      await checkStatus();
+
+      if (!finished) {
+        activeReportPoll =
+          setInterval(
+            checkStatus,
+            2000
+          );
+      }
+    };
+
+    bulkButton.addEventListener(
+      'click',
+      async () => {
+        if (!classSelect.value) {
+          return;
+        }
+
+        if (activeReportPoll) {
+          return;
+        }
+
+        const isMobile =
+          /Android|iPhone|iPad|iPod|Mobile/i.test(
+            navigator.userAgent
+          );
+
+        let mobileWindow = null;
+
+        if (isMobile) {
+          mobileWindow =
+            window.open(
+              '',
+              '_blank'
+            );
+
+          if (!mobileWindow) {
+            alert(
+              'Your browser blocked the download window. Please allow pop-ups for this site and try again.'
+            );
+            return;
+          }
+
+          mobileWindow.document.title =
+            'Generating report cards...';
+
+          mobileWindow.document.body.innerHTML = `
+            <div style="
+              font-family:system-ui,sans-serif;
+              display:flex;
+              align-items:center;
+              justify-content:center;
+              min-height:100vh;
+              text-align:center;
+              padding:24px;
+              box-sizing:border-box;
+            ">
+              <div>
+                <h2>Generating report cards...</h2>
+                <p>Please keep this window open.</p>
+              </div>
+            </div>
+          `;
+        }
+
+        bulkButton.disabled = true;
+        bulkButton.textContent =
+          'Starting report generation...';
+
+        try {
+          const response =
+            await apiRequest(
+              '/api/report-cards/bulk/start',
+              {
+                method:'POST',
+                body:JSON.stringify({
+                  class_id:
+                    Number(classSelect.value),
+
+                  academic_year_id:
+                    Number(yearSelect.value),
+
+                  term_id:
+                    Number(termSelect.value),
+
+                  sequence_id:
+                    Number(sequenceSelect.value)
+                })
+              }
+            );
+
+          if (!response.jobId) {
+            throw new Error(
+              'The report job could not be started.'
+            );
+          }
+
+          showReportProgress({
+            jobId:response.jobId,
+            status:response.status || 'queued',
+            totalStudents:
+              Number(response.totalStudents || 0),
+            completedStudents:0,
+            currentStudentId:null,
+            currentStudentName:null
+          });
+
+          bulkButton.textContent =
+            'Generating PDFs...';
+
+          await pollReportJob(
+            response.jobId,
+            mobileWindow
+          );
+
+        } catch (error) {
+          if (
+            mobileWindow &&
+            !mobileWindow.closed
+          ) {
+            mobileWindow.close();
+          }
+
+          closeReportProgress();
+
+          alert(
+            error.message ||
+            'Unable to start report generation.'
+          );
+
+          bulkButton.disabled =
+            !classSelect.value;
+
+          bulkButton.textContent =
+            'Print all class report cards';
+        }
+      }
+    );
+
     await loadTerms();
   } catch (error) { list.innerHTML = `<tr><td colspan="8" class="empty" style="color:var(--danger)">${escapeHtml(error.message)}</td></tr>`; }
 }
@@ -2502,12 +2887,3 @@ async function bootstrapSession() {
 }
 
 bootstrapSession();
-
-
-
-
-
-
-
-
-

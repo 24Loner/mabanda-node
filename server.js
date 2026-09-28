@@ -1,4 +1,4 @@
-﻿
+
 'use strict';
 
 require('dotenv').config();
@@ -12,6 +12,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const archiver = require('archiver');
+const { saveJob, getJob, deleteJob, saveZip, getZip, deleteZip } = require('./netlify/report-jobs');
 let puppeteerPromise;
 let chromiumPromise;
 
@@ -426,7 +427,6 @@ async function annualReportData(studentId, classId, yearId) {
     );
   }
 
-
   // ------------------------------------------------------------
   // ASSESSMENT SEQUENCES
   // ------------------------------------------------------------
@@ -455,7 +455,6 @@ async function annualReportData(studentId, classId, yearId) {
     );
   }
 
-
   // ------------------------------------------------------------
   // STUDENT RESULTS
   // ------------------------------------------------------------
@@ -480,7 +479,6 @@ async function annualReportData(studentId, classId, yearId) {
     )
   ).rows;
 
-
   // ------------------------------------------------------------
   // ORGANIZE SUBJECTS
   // ------------------------------------------------------------
@@ -504,7 +502,6 @@ async function annualReportData(studentId, classId, yearId) {
       Number(row.mark);
   }
 
-
   // ------------------------------------------------------------
   // ORGANIZE TERMS
   // ------------------------------------------------------------
@@ -523,7 +520,6 @@ async function annualReportData(studentId, classId, yearId) {
       termPeriods[termOrder].push(period);
     }
   }
-
 
   // ------------------------------------------------------------
   // LIMIT EACH TERM TO THE ORIGINAL TWO SEQUENCES
@@ -563,7 +559,6 @@ async function annualReportData(studentId, classId, yearId) {
     });
   }
 
-
   // ------------------------------------------------------------
   // BUILD STUDENT REPORT TABLE
   // ------------------------------------------------------------
@@ -571,7 +566,6 @@ async function annualReportData(studentId, classId, yearId) {
   let overallWeight = 0;
   let overallPossible = 0;
   let tableRows = '';
-
 
   for (const subject of Object.values(subjects)) {
 
@@ -584,7 +578,6 @@ async function annualReportData(studentId, classId, yearId) {
         </td>
     `;
 
-
     // ----------------------------------------------------------
     // TERM RESULTS
     // ----------------------------------------------------------
@@ -592,7 +585,6 @@ async function annualReportData(studentId, classId, yearId) {
     for (const rows of Object.values(termPeriods)) {
 
       const marks = [];
-
 
       for (const period of rows) {        const periodId = Number(period.id);
         const hasMark = Object.prototype.hasOwnProperty.call(
@@ -618,7 +610,6 @@ async function annualReportData(studentId, classId, yearId) {
           </td>
         `;
       }
-
 
       // --------------------------------------------------------
       // TERM AVERAGE
@@ -647,7 +638,6 @@ async function annualReportData(studentId, classId, yearId) {
 
       termAverages.push(termAverage);
 
-
       tableRows += `
         <td>
           <b>
@@ -660,7 +650,6 @@ async function annualReportData(studentId, classId, yearId) {
         </td>
       `;
     }
-
 
     // ----------------------------------------------------------
     // ANNUAL AVERAGE
@@ -683,7 +672,6 @@ async function annualReportData(studentId, classId, yearId) {
           )
         : 0;
 
-
     // ----------------------------------------------------------
     // OVERALL WEIGHTED AVERAGE
     // ----------------------------------------------------------
@@ -696,7 +684,6 @@ async function annualReportData(studentId, classId, yearId) {
       overallPossible +=
         100 * subject.coefficient;
     }
-
 
     // ----------------------------------------------------------
     // SUBJECT GRADE
@@ -712,7 +699,6 @@ async function annualReportData(studentId, classId, yearId) {
             yearId,
             annualAverage
           );
-
 
     // ----------------------------------------------------------
     // ANNUAL AVG + GRADE COLUMNS
@@ -743,7 +729,6 @@ async function annualReportData(studentId, classId, yearId) {
     `;
   }
 
-
   // ------------------------------------------------------------
   // STUDENT OVERALL ANNUAL AVERAGE
   // ------------------------------------------------------------
@@ -759,13 +744,11 @@ async function annualReportData(studentId, classId, yearId) {
         )
       : 0;
 
-
   const overallGrade =
     await grade(
       yearId,
       annualAverage
     );
-
 
   // ------------------------------------------------------------
   // CLASS RESULTS
@@ -793,9 +776,7 @@ async function annualReportData(studentId, classId, yearId) {
     )
   ).rows;
 
-
   const classSubjects = {};
-
 
   for (const row of classRows) {
 
@@ -805,11 +786,9 @@ async function annualReportData(studentId, classId, yearId) {
     const subjectKey =
       Number(row.subject_id);
 
-
     if (!classSubjects[studentKey]) {
       classSubjects[studentKey] = {};
     }
-
 
     if (!classSubjects[studentKey][subjectKey]) {
 
@@ -825,19 +804,16 @@ async function annualReportData(studentId, classId, yearId) {
       };
     }
 
-
     classSubjects[studentKey][subjectKey]
       .marks[Number(row.sequence_id)] =
         Number(row.mark);
   }
-
 
   // ------------------------------------------------------------
   // CLASS AVERAGES
   // ------------------------------------------------------------
 
   const classAverages = [];
-
 
   for (
     const studentSubjects
@@ -847,7 +823,6 @@ async function annualReportData(studentId, classId, yearId) {
     let weight = 0;
     let possible = 0;
 
-
     for (
       const subject
       of Object.values(studentSubjects)
@@ -855,14 +830,12 @@ async function annualReportData(studentId, classId, yearId) {
 
       const termAvgs = [];
 
-
       for (
         const rows
         of Object.values(termPeriods)
       ) {
 
         const marks = [];
-
 
         for (const period of rows) {
 
@@ -880,7 +853,6 @@ async function annualReportData(studentId, classId, yearId) {
           }
         }
 
-
         if (marks.length) {
 
           termAvgs.push(
@@ -897,7 +869,6 @@ async function annualReportData(studentId, classId, yearId) {
           );
         }
       }
-
 
       if (termAvgs.length) {
 
@@ -918,7 +889,6 @@ async function annualReportData(studentId, classId, yearId) {
       }
     }
 
-
     if (possible > 0) {
 
       classAverages.push(
@@ -926,7 +896,6 @@ async function annualReportData(studentId, classId, yearId) {
       );
     }
   }
-
 
   // ------------------------------------------------------------
   // CLASS AVERAGE + POSITION
@@ -944,13 +913,11 @@ async function annualReportData(studentId, classId, yearId) {
         )
       : 0;
 
-
   const position =
     1 +
     classAverages.filter(
       value => value > annualAverage
     ).length;
-
 
   // ------------------------------------------------------------
   // SCHOOL SETTINGS
@@ -972,7 +939,6 @@ async function annualReportData(studentId, classId, yearId) {
       principal_name: ''
     };
 
-
   // ------------------------------------------------------------
   // SCHOOL LOGOS
   // ------------------------------------------------------------
@@ -986,14 +952,12 @@ async function annualReportData(studentId, classId, yearId) {
 
   let logoHtml = '';
 
-
   if (fs.existsSync(logoPath)) {
 
     const data =
       fs.readFileSync(
         logoPath
       ).toString('base64');
-
 
     logoHtml = `
       <img
@@ -1010,7 +974,6 @@ async function annualReportData(studentId, classId, yearId) {
     `;
   }
 
-
   // ------------------------------------------------------------
   // REPORT TABLE HEADER
   // ------------------------------------------------------------
@@ -1022,7 +985,6 @@ async function annualReportData(studentId, classId, yearId) {
         Subject
       </th>
   `;
-
 
   for (
     const [termOrder, rows]
@@ -1036,14 +998,12 @@ async function annualReportData(studentId, classId, yearId) {
           ? 'Second Term'
           : 'Third Term';
 
-
     headerHtml += `
       <th colspan="${rows.length + 1}">
         ${termName}
       </th>
     `;
   }
-
 
   // ------------------------------------------------------------
   // IMPORTANT:
@@ -1063,7 +1023,6 @@ async function annualReportData(studentId, classId, yearId) {
 
     <tr>
   `;
-
 
   // ------------------------------------------------------------
   // SEQUENCE HEADERS
@@ -1086,7 +1045,6 @@ async function annualReportData(studentId, classId, yearId) {
       `;
     }
 
-
     headerHtml += `
       <th>
         ${
@@ -1098,11 +1056,9 @@ async function annualReportData(studentId, classId, yearId) {
     `;
   }
 
-
   headerHtml += `
     </tr>
   `;
-
 
   // ------------------------------------------------------------
   // COMPLETE REPORT CARD HTML
@@ -1235,11 +1191,9 @@ async function annualReportData(studentId, classId, yearId) {
           ATLANTIC BILINGUAL COLLEGE
         </div>
 
-
         <h1>
           ${escapeHtml(settings.school_name)}
         </h1>
-
 
         <h2>
           ${escapeHtml(settings.address || '')}
@@ -1253,7 +1207,6 @@ async function annualReportData(studentId, classId, yearId) {
           Annual Academic Report Card ·
           ${escapeHtml(student.academic_year)}
         </h2>
-
 
         <table class="meta">
 
@@ -1271,7 +1224,6 @@ async function annualReportData(studentId, classId, yearId) {
 
           </tr>
 
-
           <tr>
 
             <td>
@@ -1288,7 +1240,6 @@ async function annualReportData(studentId, classId, yearId) {
 
         </table>
 
-
         <table class="results">
 
           ${headerHtml}
@@ -1296,7 +1247,6 @@ async function annualReportData(studentId, classId, yearId) {
           ${tableRows}
 
         </table>
-
 
         <div class="summary">
 
@@ -1328,7 +1278,6 @@ async function annualReportData(studentId, classId, yearId) {
 
         </div>
 
-
         <div class="remarks">
 
           <b>General performance:</b>
@@ -1350,7 +1299,6 @@ async function annualReportData(studentId, classId, yearId) {
           _________________________________________________
 
         </div>
-
 
         <table class="signatures">
 
@@ -1378,7 +1326,6 @@ async function annualReportData(studentId, classId, yearId) {
 
     </html>
   `;
-
 
   return {
     html,
@@ -1483,7 +1430,14 @@ async function launchReportBrowser(){
     ]
   });
 }
-async function generateClassZip(user,classId,yearId,termId,sequenceId){
+async function generateClassZip(
+  user,
+  classId,
+  yearId,
+  termId,
+  sequenceId,
+  onProgress = null
+){
   if(!(await canAccessReports(user))){
     throw httpError(
       'Forbidden: bulk report cards are not enabled for this account.',
@@ -1491,7 +1445,10 @@ async function generateClassZip(user,classId,yearId,termId,sequenceId){
     );
   }
 
-  await assertClassAccess(user,classId);
+  await assertClassAccess(
+    user,
+    classId
+  );
 
   const students=await academicStudents(
     user,
@@ -1511,7 +1468,9 @@ async function generateClassZip(user,classId,yearId,termId,sequenceId){
     `class-${classId}-${yearId}-${termId}-${sequenceId}.zip`
   );
 
-  const output=fs.createWriteStream(zipFile);
+  const output=fs.createWriteStream(
+    zipFile
+  );
 
   const archive=archiver('zip',{
     zlib:{level:9}
@@ -1531,10 +1490,27 @@ async function generateClassZip(user,classId,yearId,termId,sequenceId){
     const page=await browser.newPage();
 
     try{
-      for(const s of students){
+      for(
+        let index=0;
+        index<students.length;
+        index++
+      ){
+        const s=students[index];
+
+        const completedStudents=index;
+
         console.log(
-          `[REPORT] generating student ${s.student_id}`
+          `[REPORT] generating student ${s.student_id} (${completedStudents + 1}/${students.length})`
         );
+
+        if(typeof onProgress==='function'){
+          await onProgress({
+            completedStudents,
+            totalStudents:students.length,
+            studentId:s.student_id,
+            studentName:s.full_name || ''
+          });
+        }
 
         const {html}=await annualReportData(
           Number(s.id),
@@ -1549,7 +1525,10 @@ async function generateClassZip(user,classId,yearId,termId,sequenceId){
 
         await page.setContent(
           html,
-          {waitUntil:'domcontentloaded',timeout:0}
+          {
+            waitUntil:'domcontentloaded',
+            timeout:0
+          }
         );
 
         await page.pdf({
@@ -1575,6 +1554,15 @@ async function generateClassZip(user,classId,yearId,termId,sequenceId){
         console.log(
           `[REPORT] completed student ${s.student_id}`
         );
+
+        if(typeof onProgress==='function'){
+          await onProgress({
+            completedStudents:index + 1,
+            totalStudents:students.length,
+            studentId:s.student_id,
+            studentName:s.full_name || ''
+          });
+        }
       }
     }finally{
       await page.close();
@@ -1584,6 +1572,7 @@ async function generateClassZip(user,classId,yearId,termId,sequenceId){
     await done;
 
     return zipFile;
+
   }finally{
     await browser.close();
   }
@@ -1898,7 +1887,6 @@ app.get('/health',async(req,res,next)=>{
     next(e);
   }
 });
-
 
 // ------------------------------------------------------------
 // GENERAL API
@@ -2276,6 +2264,227 @@ app.post('/api/report-cards',async(req,res,next)=>{
   }
 });
 
+app.get('/api/report-cards/bulk/status/:jobId',async(req,res,next)=>{
+  try{
+    const user=requireUser(req);
+
+    const jobId=
+      String(req.params.jobId || '').trim();
+
+    if(!jobId){
+      throw httpError(
+        'Report job ID is required.',
+        400
+      );
+    }
+
+    const job=await getJob(jobId);
+
+    if(!job){
+      throw httpError(
+        'Report job not found.',
+        404
+      );
+    }
+
+    if(Number(job.userId)!==Number(user.id)){
+      throw httpError(
+        'Forbidden.',
+        403
+      );
+    }
+
+    if(
+      job.expiresAt &&
+      Date.now()>Date.parse(job.expiresAt)
+    ){
+      if(job.status!=='expired'){
+        job.status='expired';
+        await saveJob(job);
+      }
+
+      throw httpError(
+        'This report job has expired. Please start a new one.',
+        410
+      );
+    }
+    const baseUrl=
+      process.env.URL ||
+      process.env.DEPLOY_PRIME_URL ||
+      '';
+
+    const downloadUrl=
+      job.status==='ready' &&
+      job.downloadToken &&
+      baseUrl
+        ? `${baseUrl}/.netlify/functions/report-cards-download?jobId=${encodeURIComponent(job.id)}&token=${encodeURIComponent(job.downloadToken)}`
+        : null;
+
+    json(res,{
+      jobId:job.id,
+      status:job.status,
+      totalStudents:Number(job.totalStudents||0),
+      completedStudents:Number(job.completedStudents||0),
+      currentStudentId:job.currentStudentId || null,
+      currentStudentName:job.currentStudentName || null,
+      filename:job.filename || null,
+      size:Number(job.size||0),
+      error:job.error || null,
+      createdAt:job.createdAt || null,
+      startedAt:job.startedAt || null,
+      completedAt:job.completedAt || null,
+      expiresAt:job.expiresAt || null,
+      downloadUrl
+    });
+
+  }catch(e){
+    next(e);
+  }
+});
+
+app.post('/api/report-cards/bulk/start',async(req,res,next)=>{
+  try{
+    const user=requireRole(
+      req,
+      [
+        'administrator',
+        'class_master',
+        'teacher'
+      ]
+    );
+
+    requireCsrf(req);
+
+    const b=req.body;
+
+    const classId=parseIntParam(b.class_id);
+    const academicYearId=parseIntParam(b.academic_year_id);
+    const termId=parseIntParam(b.term_id);
+    const sequenceId=parseIntParam(b.sequence_id);
+
+    if(!classId || !academicYearId || !termId || !sequenceId){
+      throw httpError(
+        'Class, academic year, term and sequence are required.',
+        400
+      );
+    }
+
+    if(!(await canAccessReports(user))){
+      throw httpError(
+        'Forbidden: bulk report cards are not enabled for this account.',
+        403
+      );
+    }
+
+    await assertClassAccess(
+      user,
+      classId
+    );
+
+    const students=await academicStudents(
+      user,
+      classId,
+      academicYearId
+    );
+
+    if(!students.length){
+      throw httpError(
+        'No active students found in this class.',
+        404
+      );
+    }
+
+    const jobId=crypto.randomBytes(24).toString('hex');
+
+    const workerToken=crypto.randomBytes(32).toString('hex');
+    const downloadToken=crypto.randomBytes(32).toString('hex');
+
+    const now=Date.now();
+
+    const job={
+      id:jobId,
+
+      userId:Number(user.id),
+      userFullName:user.full_name || '',
+      userEmail:user.email || '',
+      userRole:user.role,
+
+      classId,
+      academicYearId,
+      termId,
+      sequenceId,
+
+      status:'queued',
+
+      totalStudents:students.length,
+      completedStudents:0,
+
+      createdAt:new Date(now).toISOString(),
+      expiresAt:new Date(
+        now + (1000 * 60 * 60 * 2)
+      ).toISOString(),
+
+      workerToken,
+
+      downloadToken,
+      filename:
+        `class-report-cards-${classId}.zip`,
+
+      error:null
+    };
+
+    await saveJob(job);
+
+    const baseUrl=
+      process.env.URL ||
+      process.env.DEPLOY_PRIME_URL;
+
+    if(!baseUrl){
+      throw httpError(
+        'Netlify site URL is not configured.',
+        500
+      );
+    }
+
+    const workerUrl=
+      `${baseUrl}/.netlify/functions/report-cards-background`;
+
+    const workerResponse=await fetch(
+      workerUrl,
+      {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json'
+        },
+        body:JSON.stringify({
+          jobId,
+          workerToken
+        })
+      }
+    );
+
+    if(!workerResponse.ok && workerResponse.status !== 202){
+      const responseText=
+        await workerResponse.text().catch(
+          ()=> ''
+        );
+
+      throw new Error(
+        `Background report worker returned ${workerResponse.status}: ${responseText}`
+      );
+    }
+
+    json(res,{
+      jobId,
+      status:'queued',
+      totalStudents:students.length
+    },202);
+
+  }catch(e){
+    next(e);
+  }
+});
+
 app.post('/api/report-cards/bulk',async(req,res,next)=>{
   try{
     const user=requireRole(
@@ -2316,7 +2525,6 @@ app.post('/api/report-cards/bulk',async(req,res,next)=>{
     next(e);
   }
 });
-
 
 // ------------------------------------------------------------
 // ADMIN
@@ -2525,7 +2733,6 @@ app.get('/api/admin/students/:id/history',async(req,res,next)=>{
     next(e);
   }
 });
-
 
 // ------------------------------------------------------------
 // ADMIN CLASSES
@@ -2839,7 +3046,6 @@ app.get('/api/admin/classes/:id/classlist',async(req,res,next)=>{
     next(e);
   }
 });
-
 
 // ------------------------------------------------------------
 // ADMIN TEACHERS / SETTINGS / ANALYTICS
@@ -3180,7 +3386,6 @@ app.delete('/api/admin/teachers/:id',async(req,res,next)=>{
     next(e);
   }
 });
-
 
 // ------------------------------------------------------------
 // ADMIN TEACHER ASSIGNMENTS
@@ -3976,7 +4181,6 @@ app.get('/api/admin/subject-performance',async(req,res,next)=>{
   }
 });
 
-
 // ------------------------------------------------------------
 // SHARED API
 // ------------------------------------------------------------
@@ -4464,7 +4668,6 @@ app.get('/api/sequences',async(req,res,next)=>{
   }
 });
 
-
 // ------------------------------------------------------------
 // ADMIN RESULT TRANSITIONS
 // ------------------------------------------------------------
@@ -4499,7 +4702,6 @@ app.post(
   }
 );
 
-
 // ------------------------------------------------------------
 // STATIC FRONTEND
 // ------------------------------------------------------------
@@ -4522,7 +4724,6 @@ app.get('*',(req,res,next)=>{
     )
   );
 });
-
 
 // ------------------------------------------------------------
 // ERROR HANDLER
@@ -4547,7 +4748,6 @@ app.use((err,req,res,next)=>{
       'Internal server error.'
   });
 });
-
 
 // ------------------------------------------------------------
 // START SERVER
@@ -4575,15 +4775,4 @@ if (require.main === module) {
 }
 
 module.exports = app;
-
-
-
-
-
-
-
-
-
-
-
-
+module.exports.generateClassZip = generateClassZip;
