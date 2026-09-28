@@ -2178,19 +2178,29 @@ app.post('/api/report-cards',async(req,res,next)=>{
 
     const b=req.body;
 
+    const studentId=parseIntParam(b.student_id);
+
     const file=await generateReport(
       user,
-      parseIntParam(b.student_id),
+      studentId,
       parseIntParam(b.class_id),
       parseIntParam(b.academic_year_id),
       parseIntParam(b.term_id),
       parseIntParam(b.sequence_id)
     );
 
-    res.download(
-      file,
-      `report-card-${parseIntParam(b.student_id)}.pdf`
-    );
+    const pdf=fs.readFileSync(file);
+
+    res.status(200);
+
+    res.set({
+      'Content-Type':'application/pdf',
+      'Content-Length':String(pdf.length),
+      'Content-Disposition':`attachment; filename="report-card-${studentId}.pdf"`,
+      'Cache-Control':'no-store'
+    });
+
+    res.end(pdf);
 
   }catch(e){
     next(e);
@@ -2220,10 +2230,18 @@ app.post('/api/report-cards/bulk',async(req,res,next)=>{
       parseIntParam(b.sequence_id)
     );
 
-    res.download(
-      file,
-      'class-report-cards.zip'
-    );
+    const zip=fs.readFileSync(file);
+
+    res.status(200);
+
+    res.set({
+      'Content-Type':'application/zip',
+      'Content-Length':String(zip.length),
+      'Content-Disposition':'attachment; filename="class-report-cards.zip"',
+      'Cache-Control':'no-store'
+    });
+
+    res.end(zip);
 
   }catch(e){
     next(e);
