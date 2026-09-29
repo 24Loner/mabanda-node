@@ -1,4 +1,4 @@
-const app = document.querySelector('#app');
+﻿const app = document.querySelector('#app');
 
 const state = { loggedIn: false, view: 'dashboard' };
 const SCHOOL_NAME = 'ATLANTIC BILINGUAL COLLEGE MABANDA';
@@ -1083,7 +1083,7 @@ async function hydrateSubjects() {
             <td>${escapeHtml(item.code)}</td>
             <td>${escapeHtml(item.max_mark)}</td>
             <td>${escapeHtml(item.coefficient)}</td>
-            <td>${escapeHtml(item.category || '—')}</td>
+            <td>${escapeHtml(item.category || 'â€”')}</td>
             <td>
               <span class="status">
                 ${item.is_active ? 'Active' : 'Inactive'}
@@ -1402,12 +1402,27 @@ async function hydrateClasses() {
           const blob = await response.blob();
           const link = document.createElement('a');
           const objectUrl = URL.createObjectURL(blob);
+
+          const disposition =
+            response.headers.get('Content-Disposition') || '';
+
+          const filenameMatch =
+            disposition.match(/filename="([^"]+)"/i);
+
+          const filename =
+            filenameMatch?.[1] ||
+            `class-list-${classId}.pdf`;
+
           link.href = objectUrl;
-          link.download = `class-list-${classId}.xls`;
+          link.download = filename;
+
           document.body.appendChild(link);
           link.click();
           link.remove();
-          URL.revokeObjectURL(objectUrl);
+
+          setTimeout(() => {
+            URL.revokeObjectURL(objectUrl);
+          }, 1000);
         } catch (error) {
           alert(error.message);
         }
@@ -2887,3 +2902,4 @@ async function bootstrapSession() {
 }
 
 bootstrapSession();
+
