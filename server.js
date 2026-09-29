@@ -602,7 +602,7 @@ async function annualReportData(studentId, classId, yearId) {
           <td>
             ${
               mark === null || Number.isNaN(mark)
-                ? '—'
+                ? 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â'
                 : escapeHtml(
                     `${Number.isInteger(mark) ? mark : mark.toFixed(2)}/${subject.max_mark}`
                   )
@@ -643,7 +643,7 @@ async function annualReportData(studentId, classId, yearId) {
           <b>
             ${
               termAverage === null
-                ? '—'
+                ? 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â'
                 : `${termAverage}%`
             }
           </b>
@@ -709,7 +709,7 @@ async function annualReportData(studentId, classId, yearId) {
           <b>
             ${
               annualAverage === null
-                ? '—'
+                ? 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â'
                 : `${annualAverage}%`
             }
           </b>
@@ -719,7 +719,7 @@ async function annualReportData(studentId, classId, yearId) {
           ${escapeHtml(
             subjectGrade.grade || 'Pending'
           )}
-          ·
+          ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·
           ${escapeHtml(
             subjectGrade.evaluation || 'Pending'
           )}
@@ -1204,7 +1204,7 @@ async function annualReportData(studentId, classId, yearId) {
 
           <br>
 
-          Annual Academic Report Card ·
+          Annual Academic Report Card ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·
           ${escapeHtml(student.academic_year)}
         </h2>
 
@@ -1270,7 +1270,7 @@ async function annualReportData(studentId, classId, yearId) {
             overallGrade.grade || 'Pending'
           )}
 
-          ·
+          ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·
 
           ${escapeHtml(
             overallGrade.evaluation || 'Pending'
@@ -1312,7 +1312,7 @@ async function annualReportData(studentId, classId, yearId) {
             </td>
 
             <td class="signature">
-              Principal Signature ·
+              Principal Signature ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·
               ${escapeHtml(
                 settings.principal_name || ''
               )}
@@ -2975,6 +2975,8 @@ app.delete('/api/admin/classes/:id',async(req,res,next)=>{
 });
 
 app.get('/api/admin/classes/:id/classlist',async(req,res,next)=>{
+  let browser=null;
+
   try{
     requireRole(
       req,
@@ -3037,13 +3039,407 @@ app.get('/api/admin/classes/:id/classlist',async(req,res,next)=>{
       )
     ).rows;
 
-    json(res,{
-      class:cls,
-      students
+    const academicYear=
+      students[0]?.academic_year ||
+      `Academic Year ${year}`;
+
+    const generatedDate=
+      new Intl.DateTimeFormat(
+        'en-GB',
+        {
+          day:'2-digit',
+          month:'long',
+          year:'numeric'
+        }
+      ).format(new Date());
+
+    const formatDate=value=>{
+      if(!value){
+        return 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â';
+      }
+
+      const date=new Date(value);
+
+      if(Number.isNaN(date.getTime())){
+        return 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â';
+      }
+
+      return new Intl.DateTimeFormat(
+        'en-GB',
+        {
+          day:'2-digit',
+          month:'2-digit',
+          year:'numeric'
+        }
+      ).format(date);
+    };
+
+    const rows=students.map(
+      (student,index)=>`
+        <tr>
+          <td class="number">${index+1}</td>
+          <td>${escapeHtml(student.student_id || 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â')}</td>
+          <td>${escapeHtml(student.registration_number || 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â')}</td>
+          <td class="name">${escapeHtml(student.full_name || 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â')}</td>
+          <td>${escapeHtml(student.gender || 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â')}</td>
+          <td>${escapeHtml(formatDate(student.date_of_birth))}</td>
+          <td>${escapeHtml(student.guardian_name || 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â')}</td>
+          <td>${escapeHtml(student.guardian_phone || 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â')}</td>
+        </tr>
+      `
+    ).join('');
+
+    const html=`
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Class List - ${escapeHtml(cls.name)}</title>
+
+<style>
+  *{
+    box-sizing:border-box;
+  }
+
+  @page{
+    size:A4 landscape;
+    margin:5mm 6mm 6mm 6mm;
+  }
+
+  html,
+  body{
+    margin:0;
+    padding:0;
+  }
+
+  body{
+    font-family:Arial,Helvetica,sans-serif;
+    color:#172033;
+    font-size:9px;
+  }
+
+  /* -------------------------------------------------------
+     PRINT HEADER
+     ------------------------------------------------------- */
+
+  .header{
+    text-align:center;
+    border-bottom:1.5px solid #172033;
+    padding-bottom:4px;
+    margin-bottom:4px;
+  }
+
+  .school{
+    font-size:18px;
+    font-weight:700;
+    letter-spacing:.15px;
+    line-height:1.05;
+  }
+
+  .subtitle{
+    margin-top:1px;
+    font-size:8px;
+    color:#596579;
+    line-height:1;
+  }
+
+  .title{
+    margin-top:2px;
+    font-size:11px;
+    font-weight:700;
+    text-transform:uppercase;
+    line-height:1;
+  }
+
+  /* -------------------------------------------------------
+     CLASS INFORMATION
+     ------------------------------------------------------- */
+
+  .meta{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:3px;
+    margin-bottom:4px;
+  }
+
+  .meta-box{
+    border:1px solid #cbd2dc;
+    border-radius:2px;
+    padding:2px 5px;
+    min-height:24px;
+  }
+
+  .label{
+    display:block;
+    font-size:6px;
+    text-transform:uppercase;
+    color:#687386;
+    margin-bottom:1px;
+    font-weight:700;
+    line-height:1;
+  }
+
+  .value{
+    font-size:9px;
+    font-weight:700;
+    line-height:1;
+  }
+
+  /* -------------------------------------------------------
+     STUDENT TABLE
+     ------------------------------------------------------- */
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    table-layout:fixed;
+  }
+
+  thead{
+    display:table-header-group;
+  }
+
+  tr{
+    page-break-inside:avoid;
+    break-inside:avoid;
+  }
+
+  th{
+    background:#172033;
+    color:#fff;
+    padding:3px 4px;
+    border:1px solid #172033;
+    font-size:7.5px;
+    font-weight:700;
+    text-transform:uppercase;
+    text-align:left;
+    line-height:1.05;
+    height:18px;
+  }
+
+  td{
+    padding:2.5px 4px;
+    border:1px solid #d5dae2;
+    vertical-align:middle;
+    font-size:9px;
+    line-height:1.05;
+    overflow-wrap:anywhere;
+  }
+
+  td.name{
+    font-size:11px;
+    font-weight:600;
+    line-height:1.05;
+    white-space:normal;
+  }
+
+  tbody tr:nth-child(even){
+    background:#f7f8fa;
+  }
+
+  /* -------------------------------------------------------
+     COLUMN WIDTHS
+     ------------------------------------------------------- */
+
+  .number{
+    width:4%;
+    text-align:center;
+  }
+
+  th:nth-child(2),
+  td:nth-child(2){
+    width:10%;
+  }
+
+  th:nth-child(3),
+  td:nth-child(3){
+    width:12%;
+  }
+
+  th:nth-child(4),
+  td:nth-child(4){
+    width:23%;
+  }
+
+  th:nth-child(5),
+  td:nth-child(5){
+    width:7%;
+  }
+
+  th:nth-child(6),
+  td:nth-child(6){
+    width:10%;
+  }
+
+  th:nth-child(7),
+  td:nth-child(7){
+    width:18%;
+  }
+
+  th:nth-child(8),
+  td:nth-child(8){
+    width:16%;
+  }
+
+  /* -------------------------------------------------------
+     EMPTY STATE
+     ------------------------------------------------------- */
+
+  .empty{
+    text-align:center;
+    padding:12px;
+    color:#687386;
+    font-size:9px;
+  }
+
+  /* -------------------------------------------------------
+     FOOTER
+     ------------------------------------------------------- */
+
+  .footer{
+    margin-top:3px;
+    display:flex;
+    justify-content:space-between;
+    font-size:6.5px;
+    line-height:1;
+    color:#687386;
+  }
+</style>
+</head>
+
+<body>
+
+  <div class="header">
+    <div class="school">
+      Atlantic Bilingual College Mabanda
+    </div>
+
+    <div class="subtitle">
+      Academic OS
+    </div>
+
+    <div class="title">
+      Official Class List
+    </div>
+  </div>
+
+  <div class="meta">
+    <div class="meta-box">
+      <span class="label">Class</span>
+      <span class="value">
+        ${escapeHtml(cls.name)}
+      </span>
+    </div>
+
+    <div class="meta-box">
+      <span class="label">Academic Year</span>
+      <span class="value">
+        ${escapeHtml(academicYear)}
+      </span>
+    </div>
+
+    <div class="meta-box">
+      <span class="label">Total Students</span>
+      <span class="value">
+        ${students.length}
+      </span>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>No.</th>
+        <th>Student ID</th>
+        <th>Registration No.</th>
+        <th>Full Name</th>
+        <th>Gender</th>
+        <th>Date of Birth</th>
+        <th>Guardian</th>
+        <th>Guardian Phone</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      ${
+        rows ||
+        `<tr><td colspan="8" class="empty">
+          No active students found in this class.
+        </td></tr>`
+      }
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <span>
+      Generated: ${escapeHtml(generatedDate)}
+    </span>
+
+    <span>
+      Atlantic Bilingual College Mabanda
+    </span>
+  </div>
+
+</body>
+</html>
+`;
+
+    browser=await launchReportBrowser();
+
+    const page=await browser.newPage();
+
+    await page.setContent(
+      html,
+      {
+        waitUntil:'domcontentloaded',
+        timeout:0
+      }
+    );
+
+    const pdf=await page.pdf({
+      format:'A4',
+      landscape:true,
+      printBackground:true,
+      margin:{
+        top:'0.45in',
+        right:'0.4in',
+        bottom:'0.5in',
+        left:'0.4in'
+      }
     });
+
+    const safeClassName=
+      String(cls.name || 'class')
+        .replace(/[^a-z0-9]+/gi,'-')
+        .replace(/^-+|-+$/g,'')
+        .toLowerCase();
+
+    const safeYear=
+      String(academicYear || year)
+        .replace(/[^a-z0-9]+/gi,'-')
+        .replace(/^-+|-+$/g,'')
+        .toLowerCase();
+
+    res.status(200);
+
+    res.set({
+      'Content-Type':'application/pdf',
+      'Content-Length':String(pdf.length),
+      'Content-Disposition':
+        `attachment; filename="${safeClassName}-class-list-${safeYear}.pdf"`,
+      'Cache-Control':'no-store'
+    });
+
+    res.end(pdf);
 
   }catch(e){
     next(e);
+  }finally{
+    if(browser){
+      try{
+        await browser.close();
+      }catch(_){}
+    }
   }
 });
 
@@ -4776,3 +5172,4 @@ if (require.main === module) {
 
 module.exports = app;
 module.exports.generateClassZip = generateClassZip;
+
