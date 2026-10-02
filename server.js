@@ -602,7 +602,7 @@ async function annualReportData(studentId, classId, yearId) {
           <td>
             ${
               mark === null || Number.isNaN(mark)
-                ? 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â'
+                ? '—'
                 : escapeHtml(
                     `${Number.isInteger(mark) ? mark : mark.toFixed(2)}/${subject.max_mark}`
                   )
@@ -643,7 +643,7 @@ async function annualReportData(studentId, classId, yearId) {
           <b>
             ${
               termAverage === null
-                ? 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â'
+                ? '—'
                 : `${termAverage}%`
             }
           </b>
@@ -709,7 +709,7 @@ async function annualReportData(studentId, classId, yearId) {
           <b>
             ${
               annualAverage === null
-                ? 'ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â'
+                ? '—'
                 : `${annualAverage}%`
             }
           </b>
@@ -719,7 +719,7 @@ async function annualReportData(studentId, classId, yearId) {
           ${escapeHtml(
             subjectGrade.grade || 'Pending'
           )}
-          ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·
+          &bull;
           ${escapeHtml(
             subjectGrade.evaluation || 'Pending'
           )}
@@ -1204,7 +1204,7 @@ async function annualReportData(studentId, classId, yearId) {
 
           <br>
 
-          Annual Academic Report Card ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·
+          Annual Academic Report Card &bull;
           ${escapeHtml(student.academic_year)}
         </h2>
 
@@ -1268,9 +1268,7 @@ async function annualReportData(studentId, classId, yearId) {
           <b>Grade:</b>
           ${escapeHtml(
             overallGrade.grade || 'Pending'
-          )}
-
-          ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·
+          )} &bull;
 
           ${escapeHtml(
             overallGrade.evaluation || 'Pending'
@@ -1312,7 +1310,7 @@ async function annualReportData(studentId, classId, yearId) {
             </td>
 
             <td class="signature">
-              Principal Signature ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·
+              Principal Signature &bull;
               ${escapeHtml(
                 settings.principal_name || ''
               )}
@@ -2426,6 +2424,7 @@ app.post('/api/report-cards/bulk/start',async(req,res,next)=>{
 
       workerToken,
 
+
       downloadToken,
       filename:
         `class-report-cards-${classId}.zip`,
@@ -3055,13 +3054,13 @@ app.get('/api/admin/classes/:id/classlist',async(req,res,next)=>{
 
     const formatDate=value=>{
       if(!value){
-        return 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â';
+        return '—';
       }
 
       const date=new Date(value);
 
       if(Number.isNaN(date.getTime())){
-        return 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â';
+        return '—';
       }
 
       return new Intl.DateTimeFormat(
@@ -3078,13 +3077,13 @@ app.get('/api/admin/classes/:id/classlist',async(req,res,next)=>{
       (student,index)=>`
         <tr>
           <td class="number">${index+1}</td>
-          <td>${escapeHtml(student.student_id || 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â')}</td>
-          <td>${escapeHtml(student.registration_number || 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â')}</td>
-          <td class="name">${escapeHtml(student.full_name || 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â')}</td>
-          <td>${escapeHtml(student.gender || 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â')}</td>
+          <td>${escapeHtml(student.student_id || '—')}</td>
+          <td>${escapeHtml(student.registration_number || '—')}</td>
+          <td class="name">${escapeHtml(student.full_name || '—')}</td>
+          <td>${escapeHtml(student.gender || '—')}</td>
           <td>${escapeHtml(formatDate(student.date_of_birth))}</td>
-          <td>${escapeHtml(student.guardian_name || 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â')}</td>
-          <td>${escapeHtml(student.guardian_phone || 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â')}</td>
+          <td>${escapeHtml(student.guardian_name || '—')}</td>
+          <td>${escapeHtml(student.guardian_phone || '—')}</td>
         </tr>
       `
     ).join('');
@@ -5172,4 +5171,5 @@ if (require.main === module) {
 
 module.exports = app;
 module.exports.generateClassZip = generateClassZip;
+
 
