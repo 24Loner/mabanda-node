@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --bg: #050912;
   --bg-raised: #0a1220;
   --panel: rgba(10, 18, 33, .72);
@@ -719,7 +719,7 @@ textarea {
 .view {
   width: 100%;
   min-width: 0;
-  animation: reveal .35s ease both;
+  animation: none;
 }
 
 .toolbar {
@@ -986,109 +986,118 @@ textarea {
   }
 }
 
+
+/* =========================================================
+   APP SHELL — FIXED SIDEBAR + FIXED PAGE HEADER
+   The document itself scrolls normally. This keeps mouse-wheel and
+   two-finger trackpad scrolling natural while the navigation stays put.
+   ========================================================= */
+:root { --sidebar-width: 248px; --main-pad-x: clamp(20px, 4vw, 58px); --header-space: 126px; }
+html, body { min-height: 100%; }
+body { overflow-x: hidden; overflow-y: auto; }
+.shell { min-height: 100vh; width: 100%; display: block; }
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 100;
+  scrollbar-width: thin;
+}
+.main {
+  position: relative;
+  width: auto;
+  min-height: 100vh;
+  margin-left: var(--sidebar-width);
+  min-width: 0;
+  overflow: visible;
+  padding: var(--header-space) var(--main-pad-x) 48px;
+}
+.topbar {
+  position: fixed;
+  top: 0;
+  left: var(--sidebar-width);
+  right: 0;
+  z-index: 90;
+  margin: 0;
+  padding: 22px var(--main-pad-x) 20px;
+  background: rgba(5, 9, 18, .98);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .22);
+  backdrop-filter: blur(14px);
+}
+.table-wrap { overscroll-behavior: contain; }
+.pagination {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:14px 18px 16px;
+  border-top:1px solid var(--line);
+}
+.table-meta { color:var(--muted); font-size:11px; }
+.pagination-controls { display:flex; align-items:center; gap:5px; flex-wrap:wrap; justify-content:flex-end; }
+.pagination-btn {
+  min-width:34px;
+  height:34px;
+  padding:0 9px;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:rgba(12,22,39,.55);
+  color:var(--muted-bright);
+}
+.pagination-btn:hover:not(:disabled) { border-color:var(--line-bright); color:var(--text); }
+.pagination-btn.active { border-color:rgba(76,168,255,.6); background:rgba(76,168,255,.16); color:var(--text); }
+.pagination-btn:disabled { opacity:.4; cursor:not-allowed; }
+.pagination-ellipsis { color:var(--muted); padding:0 2px; }
+.status.inactive { color:#aeb9c9; background:rgba(142,155,178,.12); }
+.status.active { color:var(--positive); background:rgba(85,214,160,.1); }
+.status.approved { color:var(--positive); background:rgba(85,214,160,.1); }
+.status.pending { color:var(--warning); background:rgba(245,197,108,.1); }
+.status.danger { color:var(--danger); background:rgba(255,121,145,.1); }
+
 /* =========================================================
    LARGE DESKTOP
    ========================================================= */
-
 @media (min-width: 1440px) {
+  :root { --sidebar-width: 270px; --main-pad-x: clamp(42px, 4vw, 80px); --header-space: 130px; }
   .sidebar {
-    width: 270px;
-    min-width: 270px;
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
     padding-left: 20px;
     padding-right: 20px;
   }
-
-  .main {
-    padding-left: clamp(42px, 4vw, 80px);
-    padding-right: clamp(42px, 4vw, 80px);
-  }
-
-  .stats-grid {
-    gap: 18px;
-  }
-
-  .panel-header {
-    padding-left: 24px;
-    padding-right: 24px;
-  }
-
-  .panel-body {
-    padding-left: 24px;
-    padding-right: 24px;
-  }
+  .stats-grid { gap: 18px; }
+  .panel-header { padding-left: 24px; padding-right: 24px; }
+  .panel-body { padding-left: 24px; padding-right: 24px; }
 }
 
 /* =========================================================
    LAPTOP / SMALL DESKTOP
    ========================================================= */
-
 @media (max-width: 1200px) {
-  .sidebar {
-    width: 220px;
-    min-width: 220px;
-  }
-
-  .main {
-    padding-left: 28px;
-    padding-right: 28px;
-  }
-
-  .stats-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .split-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .form-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  :root { --sidebar-width: 220px; --main-pad-x: 28px; --header-space: 124px; }
+  .sidebar { width: var(--sidebar-width); min-width: var(--sidebar-width); }
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .split-grid { grid-template-columns: 1fr; }
+  .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* =========================================================
    TABLET LANDSCAPE / SMALL LAPTOP
    ========================================================= */
-
 @media (max-width: 1024px) {
-  .sidebar {
-    width: 200px;
-    min-width: 200px;
-    padding: 22px 12px;
-  }
-
-  .brand {
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-
-  .main {
-    padding: 24px 22px 40px;
-  }
-
-  .topbar {
-    margin-bottom: 30px;
-  }
-
-  .panel-header {
-    padding: 18px 18px 14px;
-  }
-
-  .panel-body {
-    padding: 0 18px 18px;
-  }
-
-  .stat-card {
-    padding: 18px;
-  }
-
-  .chart {
-    gap: 8px;
-  }
-
-  .form-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  :root { --sidebar-width: 200px; --main-pad-x: 22px; --header-space: 116px; }
+  .sidebar { width: var(--sidebar-width); min-width: var(--sidebar-width); padding: 22px 12px; }
+  .brand { padding-left: 8px; padding-right: 8px; }
+  .panel-header { padding: 18px 18px 14px; }
+  .panel-body { padding: 0 18px 18px; }
+  .stat-card { padding: 18px; }
+  .chart { gap: 8px; }
+  .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* =========================================================
@@ -1096,15 +1105,39 @@ textarea {
    ========================================================= */
 
 @media (max-width: 800px) {
-  .shell {
-    display: block;
+  html, body { height: auto; min-height: 100%; }
+  body { overflow-x: hidden; overflow-y: auto; }
+  .shell { display: block; height: auto; min-height: 100vh; }
+
+  .main {
+    position: relative;
+    margin-left: 0;
+    width: 100%;
+    min-height: 0;
+    overflow: visible;
+    padding: 0 14px 32px;
+  }
+
+  .topbar {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    margin: 0 0 28px;
+    padding: 18px 0 18px;
+    background: transparent;
+    border-bottom: 0;
+    box-shadow: none;
+    backdrop-filter: none;
   }
 
   .sidebar {
     position: relative;
+    inset: auto;
+    height: auto;
+    overflow: visible;
     width: 100%;
     min-width: 0;
-    height: auto;
     padding: 14px 14px 10px;
     border-right: 0;
     border-bottom: 1px solid var(--line);
@@ -1176,7 +1209,10 @@ textarea {
   }
 
   .main {
+    height: auto;
+    margin-left: 0;
     width: 100%;
+    overflow: visible;
     padding: 22px 18px 40px;
   }
 

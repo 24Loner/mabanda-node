@@ -1,4 +1,4 @@
-﻿const app = document.querySelector('#app');
+const app = document.querySelector('#app');
 
 const state = { loggedIn: false, view: 'dashboard' };
 const SCHOOL_NAME = 'ATLANTIC BILINGUAL COLLEGE MABANDA';
@@ -130,23 +130,23 @@ function layout(content) {
 }
 
 
-function header(kicker, title, copy, action = '') { return `<header class="topbar"><div><p class="eyebrow">${kicker}</p><h1 class="page-title">${title}</h1><p class="page-subtitle">${copy}</p></div><div class="top-actions"><button class="icon-btn" title="Notifications">?</button>${action}</div></header>`; }
+function header(kicker, title, copy, action = '') { return `<header class="topbar"><div><p class="eyebrow">${kicker}</p><h1 class="page-title">${title}</h1><p class="page-subtitle">${copy}</p></div><div class="top-actions"><button class="icon-btn" title="Notifications" aria-label="Notifications">♢</button>${action}</div></header>`; }
 function stat(label, value, trend, glyph) { return `<article class="panel stat-card"><div class="stat-head"><span>${label}</span><span class="stat-glyph">${glyph}</span></div><div class="stat-value">${value}</div><div class="stat-trend">${trend}</div></article>`; }
 function dashboard() {
-  return `<div class="view">${header('Wednesday, 16 September 2026', 'Good morning, Admin', 'Here is the academic pulse across Mabanda Secondary School.', '<button class="primary-btn" data-view="results">+ Enter results</button>')}<section class="grid stats-grid">
-    ${stat('Total students', '<span id="admin-total-students">?</span>', 'Active students', '?')}
-    ${stat('School average', '<span id="admin-school-average">?</span>', 'Current sequence', '?')}
-    ${stat('Results recorded', '<span id="admin-results-recorded">?</span>', 'Current sequence', '?')}
-    ${stat('Active teachers', '<span id="admin-active-teachers">?</span>', 'Active accounts', '?')}
+  return `<div class="view">${header('Wednesday, 16 September 2026', 'Good morning, Admin', 'Here is the academic pulse across Atlantic Bilingual College Mabanda.', '<button class="primary-btn" data-view="results">+ Enter results</button>')}<section class="grid stats-grid">
+    ${stat('Total students', '<span id="admin-total-students">—</span>', 'Active students', 'Live')}
+    ${stat('School average', '<span id="admin-school-average">—</span>', 'Current sequence', 'Live')}
+    ${stat('Results recorded', '<span id="admin-results-recorded">—</span>', 'Current sequence', 'Live')}
+    ${stat('Active teachers', '<span id="admin-active-teachers">—</span>', 'Active accounts', 'Live')}
   </section>
   <section class="grid split-grid">
     <article class="panel">
       <div class="panel-header">
         <div>
           <h2 class="panel-title">Performance overview</h2>
-          <p class="panel-note">Average score by class ? Current sequence</p>
+          <p class="panel-note">Average score by class · Current sequence</p>
         </div>
-        <button class="outline-btn">This sequence?</button>
+        <button class="outline-btn">This sequence</button>
       </div>
       <div class="panel-body">
         <div class="chart" id="admin-performance-chart">
@@ -167,14 +167,14 @@ function dashboard() {
       </div>
       <div class="panel-body activity-list">
         <div class="activity">
-          <div class="activity-icon">?</div>
+          <div class="activity-icon">•</div>
           <div class="activity-text">
             <b style="color:var(--text)">Dashboard data loaded</b>
             <span class="activity-time">Current academic sequence</span>
           </div>
         </div>
         <div class="activity">
-          <div class="activity-icon">?</div>
+          <div class="activity-icon">•</div>
           <div class="activity-text">
             <b style="color:var(--text)">Student records are live</b>
             <span class="activity-time">Counts update from active records</span>
@@ -217,7 +217,7 @@ function dashboard() {
   </section>
   </div>`;
 }
-function genericPage(title, copy, label) { return `<div class="view">${header(label, title, copy, '<button class="primary-btn" data-toast="Action queued">+ Add new</button>')}<article class="panel"><div class="toolbar" style="padding:20px 22px 0"><input class="search" placeholder="Search records..."><button class="outline-btn">Filter?</button></div><div class="empty">This workspace is ready for your ${title.toLowerCase()} data.<br><span style="font-size:12px;color:#61718a">Connect the secure application API here without changing the visual system.</span></div></article></div>`; }
+function genericPage(title, copy, label) { return `<div class="view">${header(label, title, copy, '<button class="primary-btn" data-toast="Action queued">+ Add new</button>')}<article class="panel"><div class="toolbar" style="padding:20px 22px 0"><input class="search" placeholder="Search records..."><button class="outline-btn">Filter</button></div><div class="empty">This workspace is ready for your ${title.toLowerCase()} data.<br><span style="font-size:12px;color:#61718a">Connect the secure application API here without changing the visual system.</span></div></article></div>`; }
 function reportsPage() {
   return `<div class="view">${header('Administration', 'Report cards', 'Review compiled marks across all registered subjects and print student report cards.', '<button class="outline-btn" data-view="settings">Submitted reports</button>')}<article class="panel"><div class="panel-body"><div class="form-grid"><select class="select" id="reports-year"><option>Loading years...</option></select><select class="select" id="reports-term"><option>Choose term...</option></select><select class="select" id="reports-sequence"><option>Choose sequence...</option></select><select class="select" id="reports-class"><option value="">All classes</option></select><div style="display:flex;gap:8px;align-items:center"><input class="field" id="reports-search" placeholder="Search student name or ID"><button class="primary-btn" id="reports-search-btn" type="button">Search</button><button class="outline-btn" id="reports-refresh-btn" type="button">Refresh</button></div></div><div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="primary-btn" id="print-class-reports" disabled>Print all class report cards</button></div></div></article><article class="panel" style="margin-top:16px"><div class="panel-header"><div><h2 class="panel-title">Compiled student marks</h2><p class="panel-note" id="reports-summary">Choose a reporting period to load compiled results.</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Position</th><th>Student</th><th>Student ID</th><th>Class</th><th>Subjects</th><th>Average</th><th>Status</th><th>Print</th></tr></thead><tbody id="reports-list"><tr><td colspan="8" class="empty">Select a year, term and sequence.</td></tr></tbody></table></div></article></div>`;
 }
@@ -891,7 +891,7 @@ function assignmentsPage() {
               style="cursor:pointer;list-style:none;border:1px solid var(--line);border-radius:10px;padding:0 14px;background:var(--panel);height:46px;display:flex;align-items:center;justify-content:space-between"
             >
               <span>Select subjects</span>
-              <span style="color:var(--muted)">?</span>
+              <span style="color:var(--muted)">⌄</span>
             </summary>
 
             <div
@@ -912,7 +912,7 @@ function assignmentsPage() {
               style="cursor:pointer;list-style:none;border:1px solid var(--line);border-radius:10px;padding:0 14px;background:var(--panel);height:46px;display:flex;align-items:center;justify-content:space-between"
             >
               <span>Select classes</span>
-              <span style="color:var(--muted)">?</span>
+              <span style="color:var(--muted)">⌄</span>
             </summary>
 
             <div
@@ -1022,15 +1022,21 @@ async function hydrateAdministrators() {
 
   try {
     const renderAdministrators = records => {
-      document.querySelector('#admin-list').innerHTML =
-        records.map(item => `
+      const page = pagedRecords('administrators', records);
+      const adminList = document.querySelector('#admin-list');
+      adminList.innerHTML =
+        page.records.map(item => `
           <tr>
             <td class="student-name">${escapeHtml(item.full_name)}</td>
             <td>${escapeHtml(item.email)}</td>
-            <td><span class="status">${item.is_active ? 'Active' : 'Inactive'}</span></td>
+            <td><span class="status ${item.is_active ? 'active' : 'inactive'}">${item.is_active ? 'Active' : 'Inactive'}</span></td>
           </tr>
         `).join('') ||
         '<tr><td colspan="3" class="empty">No administrator accounts found.</td></tr>';
+      const adminPanel = adminList.closest('.panel');
+      adminPanel?.querySelector('.pagination')?.remove();
+      if (page.total) adminPanel?.insertAdjacentHTML('beforeend', paginationMarkup('administrators', page.page, page.totalPages, page.total, page.start));
+      if (adminPanel) bindPagination(adminPanel, 'administrators', () => renderAdministrators(records));
     };
 
     const response = await apiRequest('/api/admin/administrators');
@@ -1076,16 +1082,18 @@ async function hydrateSubjects() {
 
   try {
     const renderSubjects = records => {
-      document.querySelector('#subject-list').innerHTML =
-        records.map(item => `
+      const page = pagedRecords('subjects', records);
+      const subjectList = document.querySelector('#subject-list');
+      subjectList.innerHTML =
+        page.records.map(item => `
           <tr>
             <td class="student-name">${escapeHtml(item.name)}</td>
             <td>${escapeHtml(item.code)}</td>
             <td>${escapeHtml(item.max_mark)}</td>
             <td>${escapeHtml(item.coefficient)}</td>
-            <td>${escapeHtml(item.category || 'â€”')}</td>
+            <td>${escapeHtml(item.category || '—')}</td>
             <td>
-              <span class="status">
+              <span class="status ${item.is_active ? 'active' : 'inactive'}">
                 ${item.is_active ? 'Active' : 'Inactive'}
               </span>
             </td>
@@ -1118,6 +1126,11 @@ async function hydrateSubjects() {
           </tr>
         `).join('') ||
         '<tr><td colspan="7" class="empty">No subjects found.</td></tr>';
+
+      const subjectPanel = subjectList.closest('.panel');
+      subjectPanel?.querySelector('.pagination')?.remove();
+      if (page.total) subjectPanel?.insertAdjacentHTML('beforeend', paginationMarkup('subjects', page.page, page.totalPages, page.total, page.start));
+      if (subjectPanel) bindPagination(subjectPanel, 'subjects', () => renderSubjects(records));
 
       document.querySelectorAll('.edit-subject').forEach(button => {
         button.addEventListener('click', () => {
@@ -1350,7 +1363,7 @@ async function hydrateSubjects() {
 async function hydrateTeachers() {
   if (window.location.protocol === 'file:') return;
   try {
-    const renderTeachers = records => { document.querySelector('#teacher-list').innerHTML = records.map(item => `<tr><td class="student-name">${escapeHtml(item.full_name)}</td><td>${escapeHtml(item.email)}</td><td>${item.assignment_count || 0}</td><td><span class="status">Active</span></td><td><button class="outline-btn deactivate-teacher" data-teacher-id="${item.id}">Remove</button></td></tr>`).join('') || '<tr><td colspan="5" class="empty">No active teachers found.</td></tr>'; document.querySelectorAll('.deactivate-teacher').forEach(button => button.addEventListener('click', async () => { if (!confirm('Deactivate this teacher and remove active assignments?')) return; await apiRequest(`/api/admin/teachers/${button.dataset.teacherId}`, { method: 'DELETE' }); const refreshed = await apiRequest('/api/admin/teachers'); renderTeachers(refreshed.teachers); })); };
+    const renderTeachers = records => { const page = pagedRecords('teachers', records); const body = document.querySelector('#teacher-list'); body.innerHTML = page.records.map(item => `<tr><td class="student-name">${escapeHtml(item.full_name)}</td><td>${escapeHtml(item.email)}</td><td>${item.assignment_count || 0}</td><td><span class="status ${item.is_active === false ? 'inactive' : 'active'}">${item.is_active === false ? 'Inactive' : 'Active'}</span></td><td><button class="outline-btn deactivate-teacher" data-teacher-id="${item.id}">Deactivate</button></td></tr>`).join('') || '<tr><td colspan="5" class="empty">No teachers found.</td></tr>'; const panel=body.closest('.panel'); panel?.querySelector('.pagination')?.remove(); if(page.total) panel?.insertAdjacentHTML('beforeend', paginationMarkup('teachers', page.page, page.totalPages, page.total, page.start)); document.querySelectorAll('.deactivate-teacher').forEach(button => button.addEventListener('click', async () => { if (!confirm('Deactivate this teacher and remove active assignments?')) return; await apiRequest(`/api/admin/teachers/${button.dataset.teacherId}`, { method: 'DELETE' }); listPages.teachers=1; const refreshed = await apiRequest('/api/admin/teachers'); renderTeachers(refreshed.teachers); })); if(panel) bindPagination(panel,'teachers',()=>renderTeachers(records)); };
     const response = await apiRequest('/api/admin/teachers'); renderTeachers(response.teachers);
     document.querySelector('#save-teacher').addEventListener('click', async () => { const message = document.querySelector('#teacher-form-message'); try { await apiRequest('/api/admin/teachers', { method: 'POST', body: JSON.stringify({ full_name: document.querySelector('#new-teacher-name').value, email: document.querySelector('#new-teacher-email').value, password: document.querySelector('#new-teacher-password').value }) }); message.textContent = 'Teacher account created successfully.'; message.style.color = 'var(--positive)'; document.querySelector('#new-teacher-name').value = ''; document.querySelector('#new-teacher-email').value = ''; document.querySelector('#new-teacher-password').value = ''; const refreshed = await apiRequest('/api/admin/teachers'); renderTeachers(refreshed.teachers); } catch (exception) { message.textContent = exception.message; message.style.color = 'var(--danger)'; } });
   } catch (exception) { document.querySelector('#teacher-list').innerHTML = `<tr><td colspan="5" class="empty" style="color:var(--danger)">${escapeHtml(exception.message)}</td></tr>`; }
@@ -1361,7 +1374,7 @@ async function hydrateClasses() {
   try {
     const [classes, years, masters] = await Promise.all([apiRequest('/api/classes'), apiRequest('/api/academic-years'), apiRequest('/api/admin/class-masters')]);
     document.querySelector('#new-class-year').innerHTML = years.academic_years.map(item => `<option value="${item.id}">${escapeHtml(item.label)}</option>`).join('');
-    document.querySelector('#new-class-master').innerHTML = '<option value="">No class master assigned</option>' + masters.class_masters.map(item => `<option value="${item.id}">${escapeHtml(item.full_name)} ? ${escapeHtml(item.role === 'class_master' ? 'Class master' : 'Teacher')}</option>`).join('');
+    document.querySelector('#new-class-master').innerHTML = '<option value="">No class master assigned</option>' + masters.class_masters.map(item => `<option value="${item.id}">${escapeHtml(item.full_name)} · ${escapeHtml(item.role === 'class_master' ? 'Class master' : 'Teacher')}</option>`).join('');
     
     state.editingClassId = null;
     const resetForm = () => {
@@ -1375,12 +1388,14 @@ async function hydrateClasses() {
     document.querySelector('#cancel-edit-class').addEventListener('click', resetForm);
 
     const renderClasses = rows => {
-      document.querySelector('#class-list').innerHTML = rows.map(item => `
+      const page = pagedRecords('classes', rows);
+      const classList = document.querySelector('#class-list');
+      classList.innerHTML = page.records.map(item => `
         <tr data-class-id="${item.id}" data-name="${escapeHtml(item.name)}" data-master-id="${item.class_master_id || ''}" data-year-id="${item.academic_year_id}">
           <td class="student-name">${escapeHtml(item.name)}</td>
           <td>${escapeHtml(item.academic_year || 'Current year')}</td>
           <td>${escapeHtml(item.class_master_name || 'Unassigned')}</td>
-          <td><span class="status">Active</span></td>
+          <td><span class="status ${item.is_active === false ? 'inactive' : 'active'}">${item.is_active === false ? 'Inactive' : 'Active'}</span></td>
           <td>
             <button class="outline-btn download-classlist-btn" data-class-id="${item.id}" data-class-year-id="${item.academic_year_id || ''}">Download list</button>
             <button class="outline-btn edit-class-btn" data-class-id="${item.id}">Edit</button>
@@ -1388,6 +1403,9 @@ async function hydrateClasses() {
           </td>
         </tr>
       `).join('') || '<tr><td colspan="5" class="empty">No classes created yet.</td></tr>';
+      const classPanel = classList.closest('.panel');
+      classPanel?.querySelector('.pagination')?.remove();
+      if (page.total) classPanel?.insertAdjacentHTML('beforeend', paginationMarkup('classes', page.page, page.totalPages, page.total, page.start));
 
       document.querySelectorAll('.download-classlist-btn').forEach(btn => btn.addEventListener('click', async () => {
         const classId = btn.dataset.classId;
@@ -1453,6 +1471,7 @@ async function hydrateClasses() {
           message.style.color = 'var(--danger)';
         }
       }));
+      if (classPanel) bindPagination(classPanel, 'classes', () => renderClasses(rows));
     };
 
     renderClasses(classes.classes);
@@ -1572,8 +1591,10 @@ async function hydrateAssignments() {
     });
 
     const renderAssignments = rows => {
-      document.querySelector('#assignment-list').innerHTML =
-        rows.map(item => `
+      const page = pagedRecords('assignments', rows);
+      const assignmentList = document.querySelector('#assignment-list');
+      assignmentList.innerHTML =
+        page.records.map(item => `
           <tr
             data-id="${item.id}"
             data-teacher-id="${item.teacher_id}"
@@ -1584,7 +1605,7 @@ async function hydrateAssignments() {
             <td>${escapeHtml(item.subject_name)} <span style="color:var(--muted)">(${escapeHtml(item.subject_code)})</span></td>
             <td>${escapeHtml(item.class_name)}</td>
             <td>${escapeHtml(item.academic_year)}</td>
-            <td><span class="status">Active</span></td>
+            <td><span class="status active">Active</span></td>
             <td>
               <button class="outline-btn edit-assignment-btn" data-assignment-id="${item.id}">Edit</button>
               <button class="outline-btn delete-assignment-btn" data-assignment-id="${item.id}">Remove</button>
@@ -1592,6 +1613,9 @@ async function hydrateAssignments() {
           </tr>
         `).join('') ||
         '<tr><td colspan="6" class="empty">No assignments created yet.</td></tr>';
+      const assignmentPanel = assignmentList.closest('.panel');
+      assignmentPanel?.querySelector('.pagination')?.remove();
+      if (page.total) assignmentPanel?.insertAdjacentHTML('beforeend', paginationMarkup('assignments', page.page, page.totalPages, page.total, page.start));
 
       document.querySelectorAll('.edit-assignment-btn').forEach(button => {
         button.addEventListener('click', () => {
@@ -1631,6 +1655,8 @@ async function hydrateAssignments() {
             'Edit assignment';
         });
       });
+
+      if (assignmentPanel) bindPagination(assignmentPanel, 'assignments', () => renderAssignments(rows));
 
       document.querySelectorAll('.delete-assignment-btn').forEach(button => {
         button.addEventListener('click', async () => {
@@ -1807,6 +1833,50 @@ async function hydrateAssignments() {
       `<tr><td colspan="6" class="empty" style="color:var(--danger)">${escapeHtml(exception.message)}</td></tr>`;
   }
 }
+
+const LIST_PAGE_SIZE = 15;
+const listPages = Object.create(null);
+
+function pagedRecords(key, records) {
+  const safe = Array.isArray(records) ? records : [];
+  const totalPages = Math.max(1, Math.ceil(safe.length / LIST_PAGE_SIZE));
+  const page = Math.min(Math.max(1, listPages[key] || 1), totalPages);
+  listPages[key] = page;
+  const start = (page - 1) * LIST_PAGE_SIZE;
+  return { records: safe.slice(start, start + LIST_PAGE_SIZE), page, totalPages, total: safe.length, start };
+}
+
+function paginationMarkup(key, page, totalPages, total, start) {
+  if (!total || totalPages <= 1) {
+    return total ? `<div class="table-meta"><span>Showing ${start + 1}–${start + Math.min(LIST_PAGE_SIZE, total)} of ${total}</span></div>` : '';
+  }
+  const buttons = [];
+  const add = (p, label, disabled=false, current=false) => buttons.push(`<button type="button" class="pagination-btn${current ? ' active' : ''}" data-page-key="${key}" data-page="${p}" ${disabled ? 'disabled' : ''}>${label}</button>`);
+  add(page - 1, '‹', page === 1);
+  const pages = [];
+  const push = p => { if (p >= 1 && p <= totalPages && !pages.includes(p)) pages.push(p); };
+  push(1); push(totalPages); for (let p = page - 2; p <= page + 2; p++) push(p);
+  pages.sort((a,b)=>a-b);
+  let prev = 0;
+  for (const p of pages) { if (prev && p - prev > 1) buttons.push('<span class="pagination-ellipsis">…</span>'); add(p, String(p), false, p === page); prev = p; }
+  add(page + 1, '›', page === totalPages);
+  const from = start + 1;
+  const to = Math.min(start + LIST_PAGE_SIZE, total);
+  return `<div class="pagination"><div class="table-meta">Showing ${from}–${to} of ${total}</div><div class="pagination-controls">${buttons.join('')}</div></div>`;
+}
+
+function bindPagination(container, key, rerender) {
+  container.querySelectorAll('.pagination-btn[data-page-key]').forEach(button => {
+    button.addEventListener('click', () => {
+      const page = Number(button.dataset.page);
+      if (!Number.isFinite(page)) return;
+      listPages[key] = page;
+      rerender();
+      container.closest('.panel')?.querySelector('.pagination-btn.active')?.focus();
+    });
+  });
+}
+
 const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : '';
 
 async function apiRequest(path, options = {}) {
@@ -2170,7 +2240,7 @@ function studentsPage() {
 
 async function hydrateStudents() {
   if (window.location.protocol === 'file:') {
-    document.querySelector('#student-directory').innerHTML = students.map(student => `<tr><td class="student-name">${student[1]}</td><td>${student[0]}</td><td>${student[2]}</td><td>2026/2027</td><td><span class="status">Active</span></td><td><button class="outline-btn">Profile</button></td></tr>`).join('');
+    document.querySelector('#student-directory').innerHTML = students.map(student => `<tr><td class="student-name">${student[1]}</td><td>${student[0]}</td><td>${student[2]}</td><td>2026/2027</td><td><span class="status active">Active</span></td><td><button class="outline-btn">Profile</button></td></tr>`).join('');
     document.querySelector('#student-count').textContent = `${students.length} demo records`;
     return;
   }
@@ -2189,13 +2259,19 @@ async function hydrateStudents() {
     });
     const directory = document.querySelector('#student-directory');
     const renderRows = records => {
-      directory.innerHTML = records.map(student => `<tr><td class="student-name">${escapeHtml(student.full_name)}</td><td>${escapeHtml(student.student_id)}</td><td>${escapeHtml(student.class_name || 'Unassigned')}</td><td>${escapeHtml(student.academic_year || '?')}</td><td><span class="status">Active</span></td><td><button class="outline-btn profile-button" data-student-id="${student.id}">Profile</button> <button class="outline-btn deactivate-button" data-student-id="${student.id}">Delete</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">No students found.</td></tr>';
-      document.querySelector('#student-count').textContent = `${records.length} active records`;
+      const page = pagedRecords('students', records);
+      directory.innerHTML = page.records.map(student => `<tr><td class="student-name">${escapeHtml(student.full_name)}</td><td>${escapeHtml(student.student_id)}</td><td>${escapeHtml(student.class_name || 'Unassigned')}</td><td>${escapeHtml(student.academic_year || '—')}</td><td><span class="status ${student.is_active === false ? 'inactive' : ''}">${student.is_active === false ? 'Inactive' : 'Active'}</span></td><td><button class="outline-btn profile-button" data-student-id="${student.id}">Profile</button> <button class="outline-btn deactivate-button" data-student-id="${student.id}">Deactivate</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">No students found.</td></tr>';
+      document.querySelector('#student-count').textContent = `${records.length} total records`;
+      const panel = directory.closest('.panel');
+      panel?.querySelector('.pagination')?.remove();
+      if (page.total) panel?.insertAdjacentHTML('beforeend', paginationMarkup('students', page.page, page.totalPages, page.total, page.start));
       directory.querySelectorAll('.profile-button').forEach(button => button.addEventListener('click', () => loadStudentHistory(button.dataset.studentId)));
-      directory.querySelectorAll('.deactivate-button').forEach(button => button.addEventListener('click', async () => { if (!confirm('Deactivate this student? Academic history will be preserved.')) return; await apiRequest(`/api/admin/students/${button.dataset.studentId}`, { method: 'DELETE' }); const refreshed = await apiRequest('/api/admin/students'); renderRows(refreshed.students); }));
+      directory.querySelectorAll('.deactivate-button').forEach(button => button.addEventListener('click', async () => { if (!confirm('Deactivate this student? Academic history will be preserved.')) return; await apiRequest(`/api/admin/students/${button.dataset.studentId}`, { method: 'DELETE' }); const refreshed = await apiRequest('/api/admin/students'); listPages.students = 1; renderRows(refreshed.students); }));
+      if (panel) bindPagination(panel, 'students', () => renderRows(records));
     };
     renderRows(response.students);
     document.querySelector('#student-search').addEventListener('input', event => {
+      listPages.students = 1;
       const term = event.target.value.toLowerCase();
       renderRows(response.students.filter(student => `${student.full_name} ${student.student_id} ${student.class_name || ''}`.toLowerCase().includes(term)));
     });
