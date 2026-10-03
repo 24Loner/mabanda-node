@@ -29,7 +29,7 @@ function layout(content) {
     ['analytics', '\u25D2', 'Analytics'],
     ['assignments', '\u21C4', 'Assignments'],
     ['administrators', '\u2665', 'Administrators'],
-    ['submitted-reports', '✓', 'Submitted reports']
+    ['settings', '✓', 'Submitted reports']
   ];
 
   const user = state.user || {
