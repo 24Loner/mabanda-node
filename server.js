@@ -2737,9 +2737,10 @@ app.patch('/api/admin/students/:id',async(req,res,next)=>{
           `INSERT INTO audit_logs(
              user_id,action,entity_type,entity_id,student_id,previous_value,new_value
            )
-           VALUES($1,'updated','student',$2,$2,$3,$4)`,
+           VALUES($1,'updated','student',$2,$3,$4,$5)`,
           [
             user.id,
+            req.params.id,
             req.params.id,
             student.full_name,
             fullName
@@ -2813,12 +2814,13 @@ app.delete('/api/admin/students/:id',async(req,res,next)=>{
            'archived',
            'student',
            $2,
-           $2,
            $3,
+           $4,
            'archived'
          )`,
         [
           user.id,
+          req.params.id,
           req.params.id,
           student.full_name
         ]
