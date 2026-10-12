@@ -68,6 +68,12 @@ Credentials are read only from `DATABASE_URL`; none are hard-coded into the appl
 - `storage/reports/` — generated PDFs/ZIPs.
 - `storage/uploads/` — reserved for application uploads.
 
+## API pagination
+
+`GET /api/admin/students`, `/api/admin/teachers`, `/api/admin/assignments`, `/api/admin/administrators`, `/api/admin/subjects`, and `/api/classes` accept `page` and `page_size` query parameters. For example, `GET /api/admin/students?page=2&page_size=15` returns the second page and adds a `pagination` object (`page`, `page_size`, `total`, and `total_pages`) alongside the existing list property. Page size is capped at 100; invalid values return HTTP 400. The student directory also accepts `search` for server-side filtering. Requests without pagination parameters retain the existing full-list response for lookup controls and older clients.
+
+The administration tables use these paginated API responses directly. Their page controls request another page from the server rather than downloading every row and slicing locally.
+
 ## Fidelity notes
 
 The frontend is intentionally not redesigned. The supplied HTML, CSS, JavaScript, branding, navigation labels, forms, workflows, and client-side behavior are retained.

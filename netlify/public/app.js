@@ -1021,11 +1021,10 @@ async function hydrateAdministrators() {
   if (window.location.protocol === 'file:') return;
 
   try {
-    const renderAdministrators = records => {
-      const page = pagedRecords('administrators', records);
+    const renderAdministrators = (records, pagination) => {
       const adminList = document.querySelector('#admin-list');
       adminList.innerHTML =
-        page.records.map(item => `
+        records.map(item => `
           <tr>
             <td class="student-name">${escapeHtml(item.full_name)}</td>
             <td>${escapeHtml(item.email)}</td>
@@ -1035,12 +1034,15 @@ async function hydrateAdministrators() {
         '<tr><td colspan="3" class="empty">No administrator accounts found.</td></tr>';
       const adminPanel = adminList.closest('.panel');
       adminPanel?.querySelector('.pagination')?.remove();
-      if (page.total) adminPanel?.insertAdjacentHTML('beforeend', paginationMarkup('administrators', page.page, page.totalPages, page.total, page.start));
-      if (adminPanel) bindPagination(adminPanel, 'administrators', () => renderAdministrators(records));
+      if (pagination?.total) adminPanel?.insertAdjacentHTML('beforeend', paginationMarkup('administrators', pagination));
+      if (adminPanel) bindPagination(adminPanel, 'administrators', loadAdministrators);
     };
 
-    const response = await apiRequest('/api/admin/administrators');
-    renderAdministrators(response.administrators);
+    const loadAdministrators = async () => {
+      const response = await apiRequest(paginatedUrl('/api/admin/administrators', 'administrators'));
+      renderAdministrators(response.administrators, response.pagination);
+    };
+    await loadAdministrators();
 
     document.querySelector('#save-admin').addEventListener('click', async () => {
       const message = document.querySelector('#admin-form-message');
@@ -1062,8 +1064,8 @@ async function hydrateAdministrators() {
         document.querySelector('#new-admin-email').value = '';
         document.querySelector('#new-admin-password').value = '';
 
-        const refreshed = await apiRequest('/api/admin/administrators');
-        renderAdministrators(refreshed.administrators);
+        listPages.administrators = 1;
+        await loadAdministrators();
 
       } catch (exception) {
         message.textContent = exception.message;
@@ -1081,11 +1083,10 @@ async function hydrateSubjects() {
   if (window.location.protocol === 'file:') return;
 
   try {
-    const renderSubjects = records => {
-      const page = pagedRecords('subjects', records);
+    const renderSubjects = (records, pagination) => {
       const subjectList = document.querySelector('#subject-list');
       subjectList.innerHTML =
-        page.records.map(item => `
+        records.map(item => `
           <tr>
             <td class="student-name">${escapeHtml(item.name)}</td>
             <td>${escapeHtml(item.code)}</td>
@@ -1129,8 +1130,8 @@ async function hydrateSubjects() {
 
       const subjectPanel = subjectList.closest('.panel');
       subjectPanel?.querySelector('.pagination')?.remove();
-      if (page.total) subjectPanel?.insertAdjacentHTML('beforeend', paginationMarkup('subjects', page.page, page.totalPages, page.total, page.start));
-      if (subjectPanel) bindPagination(subjectPanel, 'subjects', () => renderSubjects(records));
+      if (pagination?.total) subjectPanel?.insertAdjacentHTML('beforeend', paginationMarkup('subjects', pagination));
+      if (subjectPanel) bindPagination(subjectPanel, 'subjects', loadSubjects);
 
       document.querySelectorAll('.edit-subject').forEach(button => {
         button.addEventListener('click', () => {
@@ -1199,10 +1200,7 @@ async function hydrateSubjects() {
               }
             );
 
-            const refreshed =
-              await apiRequest('/api/admin/subjects');
-
-            renderSubjects(refreshed.subjects);
+            await loadSubjects();
 
           } catch (exception) {
             const message =
@@ -1242,10 +1240,7 @@ async function hydrateSubjects() {
               }
             );
 
-            const refreshed =
-              await apiRequest('/api/admin/subjects');
-
-            renderSubjects(refreshed.subjects);
+            await loadSubjects();
 
           } catch (exception) {
             const message =
@@ -1258,10 +1253,11 @@ async function hydrateSubjects() {
       });
     };
 
-    const response =
-      await apiRequest('/api/admin/subjects');
-
-    renderSubjects(response.subjects);
+    const loadSubjects = async () => {
+      const response = await apiRequest(paginatedUrl('/api/admin/subjects', 'subjects'));
+      renderSubjects(response.subjects, response.pagination);
+    };
+    await loadSubjects();
 
     const saveButton =
       document.querySelector('#save-subject');
@@ -1339,10 +1335,8 @@ async function hydrateSubjects() {
 
         resetForm();
 
-        const refreshed =
-          await apiRequest('/api/admin/subjects');
-
-        renderSubjects(refreshed.subjects);
+        listPages.subjects = 1;
+        await loadSubjects();
 
       } catch (exception) {
         message.textContent = exception.message;
@@ -1363,9 +1357,41 @@ async function hydrateSubjects() {
 async function hydrateTeachers() {
   if (window.location.protocol === 'file:') return;
   try {
-    const renderTeachers = records => { const page = pagedRecords('teachers', records); const body = document.querySelector('#teacher-list'); body.innerHTML = page.records.map(item => `<tr><td class="student-name">${escapeHtml(item.full_name)}</td><td>${escapeHtml(item.email)}</td><td>${item.assignment_count || 0}</td><td><span class="status ${item.is_active === false ? 'inactive' : 'active'}">${item.is_active === false ? 'Inactive' : 'Active'}</span></td><td><button class="outline-btn deactivate-teacher" data-teacher-id="${item.id}">Deactivate</button></td></tr>`).join('') || '<tr><td colspan="5" class="empty">No teachers found.</td></tr>'; const panel=body.closest('.panel'); panel?.querySelector('.pagination')?.remove(); if(page.total) panel?.insertAdjacentHTML('beforeend', paginationMarkup('teachers', page.page, page.totalPages, page.total, page.start)); document.querySelectorAll('.deactivate-teacher').forEach(button => button.addEventListener('click', async () => { if (!confirm('Deactivate this teacher and remove active assignments?')) return; await apiRequest(`/api/admin/teachers/${button.dataset.teacherId}`, { method: 'DELETE' }); listPages.teachers=1; const refreshed = await apiRequest('/api/admin/teachers'); renderTeachers(refreshed.teachers); })); if(panel) bindPagination(panel,'teachers',()=>renderTeachers(records)); };
-    const response = await apiRequest('/api/admin/teachers'); renderTeachers(response.teachers);
-    document.querySelector('#save-teacher').addEventListener('click', async () => { const message = document.querySelector('#teacher-form-message'); try { await apiRequest('/api/admin/teachers', { method: 'POST', body: JSON.stringify({ full_name: document.querySelector('#new-teacher-name').value, email: document.querySelector('#new-teacher-email').value, password: document.querySelector('#new-teacher-password').value }) }); message.textContent = 'Teacher account created successfully.'; message.style.color = 'var(--positive)'; document.querySelector('#new-teacher-name').value = ''; document.querySelector('#new-teacher-email').value = ''; document.querySelector('#new-teacher-password').value = ''; const refreshed = await apiRequest('/api/admin/teachers'); renderTeachers(refreshed.teachers); } catch (exception) { message.textContent = exception.message; message.style.color = 'var(--danger)'; } });
+    const renderTeachers = (records, pagination) => {
+      const body = document.querySelector('#teacher-list');
+      body.innerHTML = records.map(item => `<tr><td class="student-name">${escapeHtml(item.full_name)}</td><td>${escapeHtml(item.email)}</td><td>${item.assignment_count || 0}</td><td><span class="status ${item.is_active === false ? 'inactive' : 'active'}">${item.is_active === false ? 'Inactive' : 'Active'}</span></td><td><button class="outline-btn deactivate-teacher" data-teacher-id="${item.id}">Deactivate</button></td></tr>`).join('') || '<tr><td colspan="5" class="empty">No teachers found.</td></tr>';
+      const panel = body.closest('.panel');
+      panel?.querySelector('.pagination')?.remove();
+      if (pagination?.total) panel?.insertAdjacentHTML('beforeend', paginationMarkup('teachers', pagination));
+      document.querySelectorAll('.deactivate-teacher').forEach(button => button.addEventListener('click', async () => {
+        if (!confirm('Deactivate this teacher and remove active assignments?')) return;
+        await apiRequest(`/api/admin/teachers/${button.dataset.teacherId}`, { method: 'DELETE' });
+        listPages.teachers = 1;
+        await loadTeachers();
+      }));
+      if (panel) bindPagination(panel, 'teachers', loadTeachers);
+    };
+    const loadTeachers = async () => {
+      const response = await apiRequest(paginatedUrl('/api/admin/teachers', 'teachers'));
+      renderTeachers(response.teachers, response.pagination);
+    };
+    await loadTeachers();
+    document.querySelector('#save-teacher').addEventListener('click', async () => {
+      const message = document.querySelector('#teacher-form-message');
+      try {
+        await apiRequest('/api/admin/teachers', { method: 'POST', body: JSON.stringify({ full_name: document.querySelector('#new-teacher-name').value, email: document.querySelector('#new-teacher-email').value, password: document.querySelector('#new-teacher-password').value }) });
+        message.textContent = 'Teacher account created successfully.';
+        message.style.color = 'var(--positive)';
+        document.querySelector('#new-teacher-name').value = '';
+        document.querySelector('#new-teacher-email').value = '';
+        document.querySelector('#new-teacher-password').value = '';
+        listPages.teachers = 1;
+        await loadTeachers();
+      } catch (exception) {
+        message.textContent = exception.message;
+        message.style.color = 'var(--danger)';
+      }
+    });
   } catch (exception) { document.querySelector('#teacher-list').innerHTML = `<tr><td colspan="5" class="empty" style="color:var(--danger)">${escapeHtml(exception.message)}</td></tr>`; }
 }
 
@@ -1387,10 +1413,9 @@ async function hydrateClasses() {
 
     document.querySelector('#cancel-edit-class').addEventListener('click', resetForm);
 
-    const renderClasses = rows => {
-      const page = pagedRecords('classes', rows);
+    const renderClasses = (rows, pagination) => {
       const classList = document.querySelector('#class-list');
-      classList.innerHTML = page.records.map(item => `
+      classList.innerHTML = rows.map(item => `
         <tr data-class-id="${item.id}" data-name="${escapeHtml(item.name)}" data-master-id="${item.class_master_id || ''}" data-year-id="${item.academic_year_id}">
           <td class="student-name">${escapeHtml(item.name)}</td>
           <td>${escapeHtml(item.academic_year || 'Current year')}</td>
@@ -1405,7 +1430,7 @@ async function hydrateClasses() {
       `).join('') || '<tr><td colspan="5" class="empty">No classes created yet.</td></tr>';
       const classPanel = classList.closest('.panel');
       classPanel?.querySelector('.pagination')?.remove();
-      if (page.total) classPanel?.insertAdjacentHTML('beforeend', paginationMarkup('classes', page.page, page.totalPages, page.total, page.start));
+      if (pagination?.total) classPanel?.insertAdjacentHTML('beforeend', paginationMarkup('classes', pagination));
 
       document.querySelectorAll('.download-classlist-btn').forEach(btn => btn.addEventListener('click', async () => {
         const classId = btn.dataset.classId;
@@ -1464,17 +1489,20 @@ async function hydrateClasses() {
           await apiRequest(`/api/admin/classes/${btn.dataset.classId}`, { method: 'DELETE' });
           message.textContent = 'Class deactivated successfully.';
           message.style.color = 'var(--positive)';
-          const refreshed = await apiRequest('/api/classes');
-          renderClasses(refreshed.classes);
+          await loadClasses();
         } catch (err) {
           message.textContent = err.message;
           message.style.color = 'var(--danger)';
         }
       }));
-      if (classPanel) bindPagination(classPanel, 'classes', () => renderClasses(rows));
+      if (classPanel) bindPagination(classPanel, 'classes', loadClasses);
     };
 
-    renderClasses(classes.classes);
+    const loadClasses = async () => {
+      const response = await apiRequest(paginatedUrl('/api/classes', 'classes'));
+      renderClasses(response.classes, response.pagination);
+    };
+    await loadClasses();
 
     document.querySelector('#save-class').addEventListener('click', async () => {
       const message = document.querySelector('#class-form-message');
@@ -1493,8 +1521,7 @@ async function hydrateClasses() {
         }
         message.style.color = 'var(--positive)';
         resetForm();
-        const refreshed = await apiRequest('/api/classes');
-        renderClasses(refreshed.classes);
+        await loadClasses();
       } catch (exception) {
         message.textContent = exception.message;
         message.style.color = 'var(--danger)';
@@ -1519,7 +1546,7 @@ async function hydrateAssignments() {
       apiRequest('/api/admin/teachers'),
       apiRequest('/api/subjects'),
       apiRequest('/api/classes'),
-      apiRequest('/api/admin/assignments')
+      apiRequest(paginatedUrl('/api/admin/assignments', 'assignments'))
     ]);
 
     const teacherSelect = document.querySelector('#assignment-teacher');
@@ -1590,11 +1617,10 @@ async function hydrateAssignments() {
       updateClassSummary();
     });
 
-    const renderAssignments = rows => {
-      const page = pagedRecords('assignments', rows);
+    const renderAssignments = (rows, pagination) => {
       const assignmentList = document.querySelector('#assignment-list');
       assignmentList.innerHTML =
-        page.records.map(item => `
+        rows.map(item => `
           <tr
             data-id="${item.id}"
             data-teacher-id="${item.teacher_id}"
@@ -1615,7 +1641,7 @@ async function hydrateAssignments() {
         '<tr><td colspan="6" class="empty">No assignments created yet.</td></tr>';
       const assignmentPanel = assignmentList.closest('.panel');
       assignmentPanel?.querySelector('.pagination')?.remove();
-      if (page.total) assignmentPanel?.insertAdjacentHTML('beforeend', paginationMarkup('assignments', page.page, page.totalPages, page.total, page.start));
+      if (pagination?.total) assignmentPanel?.insertAdjacentHTML('beforeend', paginationMarkup('assignments', pagination));
 
       document.querySelectorAll('.edit-assignment-btn').forEach(button => {
         button.addEventListener('click', () => {
@@ -1656,7 +1682,7 @@ async function hydrateAssignments() {
         });
       });
 
-      if (assignmentPanel) bindPagination(assignmentPanel, 'assignments', () => renderAssignments(rows));
+      if (assignmentPanel) bindPagination(assignmentPanel, 'assignments', loadAssignments);
 
       document.querySelectorAll('.delete-assignment-btn').forEach(button => {
         button.addEventListener('click', async () => {
@@ -1674,10 +1700,7 @@ async function hydrateAssignments() {
               'Teacher assignment removed successfully.';
             message.style.color = 'var(--positive)';
 
-            const refreshed =
-              await apiRequest('/api/admin/assignments');
-
-            renderAssignments(refreshed.assignments);
+            await loadAssignments();
           } catch (exception) {
             message.textContent = exception.message;
             message.style.color = 'var(--danger)';
@@ -1729,7 +1752,11 @@ async function hydrateAssignments() {
       .querySelector('#cancel-edit-assignment')
       .addEventListener('click', resetAssignmentForm);
 
-    renderAssignments(assignments.assignments);
+    const loadAssignments = async () => {
+      const response = await apiRequest(paginatedUrl('/api/admin/assignments', 'assignments'));
+      renderAssignments(response.assignments, response.pagination);
+    };
+    renderAssignments(assignments.assignments, assignments.pagination);
 
     document
       .querySelector('#save-assignment')
@@ -1815,10 +1842,7 @@ async function hydrateAssignments() {
             updateClassSummary();
           }
 
-          const refreshed =
-            await apiRequest('/api/admin/assignments');
-
-          renderAssignments(refreshed.assignments);
+          await loadAssignments();
 
         } catch (exception) {
           message.textContent = exception.message;
@@ -1837,19 +1861,21 @@ async function hydrateAssignments() {
 const LIST_PAGE_SIZE = 15;
 const listPages = Object.create(null);
 
-function pagedRecords(key, records) {
-  const safe = Array.isArray(records) ? records : [];
-  const totalPages = Math.max(1, Math.ceil(safe.length / LIST_PAGE_SIZE));
-  const page = Math.min(Math.max(1, listPages[key] || 1), totalPages);
-  listPages[key] = page;
-  const start = (page - 1) * LIST_PAGE_SIZE;
-  return { records: safe.slice(start, start + LIST_PAGE_SIZE), page, totalPages, total: safe.length, start };
+function paginatedUrl(path, key, extra = {}) {
+  const params = new URLSearchParams({
+    page: String(listPages[key] || 1),
+    page_size: String(LIST_PAGE_SIZE),
+    ...extra
+  });
+  return `${path}?${params}`;
 }
 
-function paginationMarkup(key, page, totalPages, total, start) {
-  if (!total || totalPages <= 1) {
-    return total ? `<div class="table-meta"><span>Showing ${start + 1}–${start + Math.min(LIST_PAGE_SIZE, total)} of ${total}</span></div>` : '';
-  }
+function paginationMarkup(key, pagination) {
+  const { page, page_size: pageSize, total, total_pages: totalPages } = pagination;
+  listPages[key] = page;
+  const start = (page - 1) * pageSize;
+  if (!total) return '';
+  if (totalPages <= 1) return `<div class="pagination"><div class="table-meta">Showing ${start + 1}–${Math.min(start + pageSize, total)} of ${total}</div></div>`;
   const buttons = [];
   const add = (p, label, disabled=false, current=false) => buttons.push(`<button type="button" class="pagination-btn${current ? ' active' : ''}" data-page-key="${key}" data-page="${p}" ${disabled ? 'disabled' : ''}>${label}</button>`);
   add(page - 1, '‹', page === 1);
@@ -1861,17 +1887,25 @@ function paginationMarkup(key, page, totalPages, total, start) {
   for (const p of pages) { if (prev && p - prev > 1) buttons.push('<span class="pagination-ellipsis">…</span>'); add(p, String(p), false, p === page); prev = p; }
   add(page + 1, '›', page === totalPages);
   const from = start + 1;
-  const to = Math.min(start + LIST_PAGE_SIZE, total);
+  const to = Math.min(start + pageSize, total);
   return `<div class="pagination"><div class="table-meta">Showing ${from}–${to} of ${total}</div><div class="pagination-controls">${buttons.join('')}</div></div>`;
 }
 
 function bindPagination(container, key, rerender) {
   container.querySelectorAll('.pagination-btn[data-page-key]').forEach(button => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
       const page = Number(button.dataset.page);
       if (!Number.isFinite(page)) return;
       listPages[key] = page;
-      rerender();
+      try {
+        await rerender();
+      } catch (exception) {
+        const meta = container.querySelector('.table-meta');
+        if (meta) {
+          meta.textContent = exception.message;
+          meta.style.color = 'var(--danger)';
+        }
+      }
       container.closest('.panel')?.querySelector('.pagination-btn.active')?.focus();
     });
   });
@@ -2260,7 +2294,11 @@ async function hydrateStudents() {
     return;
   }
   try {
-    const [response, classes, years] = await Promise.all([apiRequest('/api/admin/students'), apiRequest('/api/classes'), apiRequest('/api/academic-years')]);
+    const [response, classes, years] = await Promise.all([
+      apiRequest(paginatedUrl('/api/admin/students', 'students', { search: document.querySelector('#student-search').value.trim() })),
+      apiRequest('/api/classes'),
+      apiRequest('/api/academic-years')
+    ]);
     document.querySelector('#new-class').innerHTML = classes.classes.map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('');
     document.querySelector('#new-year').innerHTML = years.academic_years.map(item => `<option value="${item.id}">${escapeHtml(item.label)}</option>`).join('');
     let editingStudentId = null;
@@ -2310,19 +2348,18 @@ async function hydrateStudents() {
           await apiRequest('/api/admin/students', { method: 'POST', body: JSON.stringify({ ...body, class_id: Number(document.querySelector('#new-class').value), academic_year_id: Number(document.querySelector('#new-year').value) }) });
         }
         formPanel.style.display = 'none';
-        const refreshed = await apiRequest('/api/admin/students');
-        studentsRecords = refreshed.students;
-        renderRows(studentsRecords.filter(student => `${student.full_name} ${student.registration_number} ${student.class_name || ''}`.toLowerCase().includes(document.querySelector('#student-search').value.toLowerCase())));
+        listPages.students = 1;
+        await loadStudents();
       } catch (exception) { message.textContent = exception.message; message.style.color = 'var(--danger)'; }
     });
     const directory = document.querySelector('#student-directory');
-    const renderRows = records => {
-      const page = pagedRecords('students', records);
-      directory.innerHTML = page.records.map(student => `<tr><td class="student-name">${escapeHtml(student.full_name)}</td><td>${escapeHtml(student.registration_number)}</td><td>${escapeHtml(student.class_name || 'Unassigned')}</td><td>${escapeHtml(student.academic_year || '—')}</td><td><span class="status active">Active</span></td><td><button class="outline-btn profile-button" data-student-id="${student.id}">Profile</button> <button class="outline-btn edit-student-button" data-student-id="${student.id}">Edit</button> <button class="outline-btn deactivate-button" data-student-id="${student.id}">Archive</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">No students found.</td></tr>';
-      document.querySelector('#student-count').textContent = `${records.length} total records`;
+    const renderRows = (records, pagination) => {
+      studentsRecords = records;
+      directory.innerHTML = records.map(student => `<tr><td class="student-name">${escapeHtml(student.full_name)}</td><td>${escapeHtml(student.registration_number)}</td><td>${escapeHtml(student.class_name || 'Unassigned')}</td><td>${escapeHtml(student.academic_year || '—')}</td><td><span class="status active">Active</span></td><td><button class="outline-btn profile-button" data-student-id="${student.id}">Profile</button> <button class="outline-btn edit-student-button" data-student-id="${student.id}">Edit</button> <button class="outline-btn deactivate-button" data-student-id="${student.id}">Archive</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">No students found.</td></tr>';
+      document.querySelector('#student-count').textContent = `${pagination.total} total records`;
       const panel = directory.closest('.panel');
       panel?.querySelector('.pagination')?.remove();
-      if (page.total) panel?.insertAdjacentHTML('beforeend', paginationMarkup('students', page.page, page.totalPages, page.total, page.start));
+      if (pagination?.total) panel?.insertAdjacentHTML('beforeend', paginationMarkup('students', pagination));
       directory.querySelectorAll('.profile-button').forEach(button => button.addEventListener('click', () => loadStudentHistory(button.dataset.studentId)));
       directory.querySelectorAll('.edit-student-button').forEach(button => button.addEventListener('click', () => {
         const student = studentsRecords.find(item => String(item.id) === button.dataset.studentId);
@@ -2332,21 +2369,28 @@ async function hydrateStudents() {
         if (!confirm('Archive this student? Their marks and report cards will be preserved, and the student will be removed from active lists.')) return;
         try {
           await apiRequest(`/api/admin/students/${button.dataset.studentId}`, { method: 'DELETE' });
-          const refreshed = await apiRequest('/api/admin/students');
-          studentsRecords = refreshed.students;
           listPages.students = 1;
-          renderRows(studentsRecords);
+          await loadStudents();
         } catch (exception) {
           alert(exception.message);
         }
       }));
-      if (panel) bindPagination(panel, 'students', () => renderRows(records));
+      if (panel) bindPagination(panel, 'students', loadStudents);
     };
-    renderRows(response.students);
-    document.querySelector('#student-search').addEventListener('input', event => {
+    const loadStudents = async () => {
+      const response = await apiRequest(paginatedUrl('/api/admin/students', 'students', {
+        search: document.querySelector('#student-search').value.trim()
+      }));
+      renderRows(response.students, response.pagination);
+    };
+    renderRows(response.students, response.pagination);
+    let searchTimer;
+    document.querySelector('#student-search').addEventListener('input', () => {
       listPages.students = 1;
-      const term = event.target.value.toLowerCase();
-      renderRows(studentsRecords.filter(student => `${student.full_name} ${student.registration_number} ${student.class_name || ''}`.toLowerCase().includes(term)));
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => loadStudents().catch(exception => {
+        directory.innerHTML = `<tr><td colspan="6" class="empty" style="color:var(--danger)">${escapeHtml(exception.message)}</td></tr>`;
+      }), 250);
     });
   } catch (exception) {
     document.querySelector('#student-directory').innerHTML = `<tr><td colspan="6" class="empty" style="color:var(--danger)">${escapeHtml(exception.message)}</td></tr>`;

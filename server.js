@@ -134,6 +134,47 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[ch]));
 }
 async function q(text, params = []) { return pool.query(text, params); }
+function requestedPagination(req) {
+  if (req.query.page === undefined && req.query.page_size === undefined) return null;
+
+  const page = req.query.page === undefined ? 1 : Number(req.query.page);
+  const pageSize = req.query.page_size === undefined ? 15 : Number(req.query.page_size);
+  const offset = (page - 1) * pageSize;
+  if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 100 || !Number.isSafeInteger(offset)) {
+    throw httpError('Pagination requires page >= 1 and page_size between 1 and 100.', 400);
+  }
+
+  return { page, pageSize, offset };
+}
+async function pagedQuery(req, dataSql, countSql, params = []) {
+  const pagination = requestedPagination(req);
+  if (!pagination) {
+    return { rows: (await q(dataSql, params)).rows, pagination: null };
+  }
+
+  const limitIndex = params.length + 1;
+  const offsetIndex = params.length + 2;
+  const [records, count] = await Promise.all([
+    q(`${dataSql} LIMIT $${limitIndex} OFFSET $${offsetIndex}`, [...params, pagination.pageSize, pagination.offset]),
+    q(countSql, params),
+  ]);
+  const total = Number(count.rows[0]?.total || 0);
+  const totalPages = Math.ceil(total / pagination.pageSize);
+  const page = Math.min(pagination.page, Math.max(1, totalPages));
+  const pageRecords = page === pagination.page
+    ? records
+    : await q(`${dataSql} LIMIT $${limitIndex} OFFSET $${offsetIndex}`, [...params, pagination.pageSize, (page - 1) * pagination.pageSize]);
+
+  return {
+    rows: pageRecords.rows,
+    pagination: {
+      page,
+      page_size: pagination.pageSize,
+      total,
+      total_pages: totalPages,
+    },
+  };
+}
 async function tx(fn) {
   const client = await pool.connect();
   try {
@@ -2557,7 +2598,9 @@ app.get('/api/admin/students',async(req,res,next)=>{
       ['administrator']
     );
 
-    const r=await q(
+    const search=String(req.query.search||'').trim();
+    const r=await pagedQuery(
+      req,
       `SELECT
          s.*,
          c.name AS class_name,
@@ -2570,11 +2613,26 @@ app.get('/api/admin/students',async(req,res,next)=>{
        LEFT JOIN academic_years ay
          ON ay.id=cs.academic_year_id
        WHERE s.is_active=TRUE
-       ORDER BY s.full_name`
+         AND ($1='' OR s.full_name ILIKE '%' || $1 || '%'
+           OR s.registration_number ILIKE '%' || $1 || '%'
+           OR COALESCE(c.name,'') ILIKE '%' || $1 || '%')
+       ORDER BY s.full_name,s.id,cs.academic_year_id DESC NULLS LAST,cs.class_id`,
+      `SELECT COUNT(*) AS total
+       FROM students s
+       LEFT JOIN class_students cs
+         ON cs.student_id=s.id
+       LEFT JOIN classes c
+         ON c.id=cs.class_id
+       WHERE s.is_active=TRUE
+         AND ($1='' OR s.full_name ILIKE '%' || $1 || '%'
+           OR s.registration_number ILIKE '%' || $1 || '%'
+           OR COALESCE(c.name,'') ILIKE '%' || $1 || '%')`,
+      [search]
     );
 
     json(res,{
-      students:r.rows
+      students:r.rows,
+      ...(r.pagination ? { pagination:r.pagination } : {})
     });
 
   }catch(e){
@@ -3589,7 +3647,8 @@ app.get('/api/admin/teachers',async(req,res,next)=>{
       ['administrator']
     );
 
-    const r=await q(
+    const r=await pagedQuery(
+      req,
       `SELECT
          u.id,
          u.full_name,
@@ -3605,11 +3664,18 @@ app.get('/api/admin/teachers',async(req,res,next)=>{
          ON r.id=u.role_id
        WHERE r.name='teacher'
          AND u.is_active=TRUE
-       ORDER BY u.full_name`
+       ORDER BY u.full_name,u.id`,
+      `SELECT COUNT(*) AS total
+       FROM users u
+       INNER JOIN roles r
+         ON r.id=u.role_id
+       WHERE r.name='teacher'
+         AND u.is_active=TRUE`
     );
 
     json(res,{
-      teachers:r.rows
+      teachers:r.rows,
+      ...(r.pagination ? { pagination:r.pagination } : {})
     });
 
   }catch(e){
@@ -3717,7 +3783,8 @@ app.get('/api/admin/administrators',async(req,res,next)=>{
   try{
     requireRole(req,['administrator']);
 
-    const r=await q(
+    const r=await pagedQuery(
+      req,
       `SELECT
          u.id,
          u.full_name,
@@ -3727,11 +3794,17 @@ app.get('/api/admin/administrators',async(req,res,next)=>{
        INNER JOIN roles r
          ON r.id=u.role_id
        WHERE r.name='administrator'
-       ORDER BY u.full_name`
+       ORDER BY u.full_name,u.id`,
+      `SELECT COUNT(*) AS total
+       FROM users u
+       INNER JOIN roles r
+         ON r.id=u.role_id
+       WHERE r.name='administrator'`
     );
 
     json(res,{
-      administrators:r.rows
+      administrators:r.rows,
+      ...(r.pagination ? { pagination:r.pagination } : {})
     });
 
   }catch(e){
@@ -3929,7 +4002,8 @@ app.get('/api/admin/assignments',async(req,res,next)=>{
       ['administrator']
     );
 
-    const r=await q(
+    const r=await pagedQuery(
+      req,
       `SELECT
          a.id,
          a.teacher_id,
@@ -3958,11 +4032,24 @@ app.get('/api/admin/assignments',async(req,res,next)=>{
          AND u.is_active=TRUE
          AND s.is_active=TRUE
          AND c.is_active=TRUE
-       ORDER BY u.full_name,s.name,c.name`
+       ORDER BY u.full_name,s.name,c.name,a.id`,
+      `SELECT COUNT(*) AS total
+       FROM teacher_subject_classes a
+       INNER JOIN users u
+         ON u.id=a.teacher_id
+       INNER JOIN subjects s
+         ON s.id=a.subject_id
+       INNER JOIN classes c
+         ON c.id=a.class_id
+       WHERE a.is_active=TRUE
+         AND u.is_active=TRUE
+         AND s.is_active=TRUE
+         AND c.is_active=TRUE`
     );
 
     json(res,{
-      assignments:r.rows
+      assignments:r.rows,
+      ...(r.pagination ? { pagination:r.pagination } : {})
     });
 
   }catch(e){
@@ -4725,12 +4812,15 @@ app.get('/api/classes',async(req,res,next)=>{
     );
 
     if(!ids.length){
+      const pagination=requestedPagination(req);
       return json(res,{
-        classes:[]
+        classes:[],
+        ...(pagination ? { pagination:{ page:1, page_size:pagination.pageSize, total:0, total_pages:0 } } : {})
       });
     }
 
-    const r=await q(
+    const r=await pagedQuery(
+      req,
       `SELECT
          c.*,
          ay.label AS academic_year,
@@ -4741,12 +4831,16 @@ app.get('/api/classes',async(req,res,next)=>{
        LEFT JOIN users u
          ON u.id=c.class_master_id
        WHERE c.id=ANY($1::int[])
-       ORDER BY c.name`,
+       ORDER BY c.name,c.id`,
+      `SELECT COUNT(*) AS total
+       FROM classes c
+       WHERE c.id=ANY($1::int[])`,
       [ids]
     );
 
     json(res,{
-      classes:r.rows
+      classes:r.rows,
+      ...(r.pagination ? { pagination:r.pagination } : {})
     });
 
   }catch(e){
@@ -4758,7 +4852,8 @@ app.get('/api/admin/subjects',async(req,res,next)=>{
   try{
     requireRole(req,['administrator']);
 
-    const r=await q(
+    const r=await pagedQuery(
+      req,
       `SELECT
          id,
          name,
@@ -4768,11 +4863,13 @@ app.get('/api/admin/subjects',async(req,res,next)=>{
          category,
          is_active
        FROM subjects
-       ORDER BY name`
+       ORDER BY name,id`,
+      `SELECT COUNT(*) AS total FROM subjects`
     );
 
     json(res,{
-      subjects:r.rows
+      subjects:r.rows,
+      ...(r.pagination ? { pagination:r.pagination } : {})
     });
 
   }catch(e){
