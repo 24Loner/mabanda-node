@@ -988,41 +988,43 @@ textarea {
 
 
 /* =========================================================
-   APP SHELL — FIXED SIDEBAR + FIXED PAGE HEADER
-   The document itself scrolls normally. This keeps mouse-wheel and
-   two-finger trackpad scrolling natural while the navigation stays put.
+   APP SHELL — FIXED SIDEBAR + INDEPENDENT MAIN PANE
    ========================================================= */
-:root { --sidebar-width: 248px; --main-pad-x: clamp(20px, 4vw, 58px); --header-space: 126px; }
-html, body { min-height: 100%; }
-body { overflow-x: hidden; overflow-y: auto; }
-.shell { min-height: 100vh; width: 100%; display: block; }
+:root { --sidebar-width: 248px; --main-pad-x: clamp(20px, 4vw, 58px); }
+html, body { width: 100%; height: 100%; min-height: 100%; }
+body { overflow: hidden; }
+.shell { height: 100vh; height: 100dvh; width: 100%; overflow: hidden; }
 .sidebar {
   position: fixed;
   inset: 0 auto 0 0;
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
   height: 100vh;
+  height: 100dvh;
   overflow-y: auto;
   overflow-x: hidden;
   z-index: 100;
   scrollbar-width: thin;
 }
 .main {
-  position: relative;
+  position: fixed;
+  inset: 0 0 0 var(--sidebar-width);
   width: auto;
-  min-height: 100vh;
-  margin-left: var(--sidebar-width);
+  height: 100vh;
+  height: 100dvh;
+  margin-left: 0;
   min-width: 0;
-  overflow: visible;
-  padding: var(--header-space) var(--main-pad-x) 48px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--main-pad-x) 48px;
+  scrollbar-width: thin;
 }
 .topbar {
-  position: fixed;
+  position: sticky;
   top: 0;
-  left: var(--sidebar-width);
-  right: 0;
   z-index: 90;
-  margin: 0;
+  margin: 0 calc(-1 * var(--main-pad-x));
   padding: 22px var(--main-pad-x) 20px;
   background: rgba(5, 9, 18, .98);
   border-bottom: 1px solid var(--line);
@@ -1039,6 +1041,8 @@ body { overflow-x: hidden; overflow-y: auto; }
   border-top:1px solid var(--line);
 }
 .table-meta { color:var(--muted); font-size:11px; }
+.class-performance-link { padding:0; border:0; background:none; color:var(--text); font:inherit; font-weight:600; text-align:left; cursor:pointer; }
+.class-performance-link:hover { color:var(--blue-bright); text-decoration:underline; }
 .pagination-controls { display:flex; align-items:center; gap:5px; flex-wrap:wrap; justify-content:flex-end; }
 .pagination-btn {
   min-width:34px;
@@ -1063,7 +1067,7 @@ body { overflow-x: hidden; overflow-y: auto; }
    LARGE DESKTOP
    ========================================================= */
 @media (min-width: 1440px) {
-  :root { --sidebar-width: 270px; --main-pad-x: clamp(42px, 4vw, 80px); --header-space: 130px; }
+  :root { --sidebar-width: 270px; --main-pad-x: clamp(42px, 4vw, 80px); }
   .sidebar {
     width: var(--sidebar-width);
     min-width: var(--sidebar-width);
@@ -1079,7 +1083,7 @@ body { overflow-x: hidden; overflow-y: auto; }
    LAPTOP / SMALL DESKTOP
    ========================================================= */
 @media (max-width: 1200px) {
-  :root { --sidebar-width: 220px; --main-pad-x: 28px; --header-space: 124px; }
+  :root { --sidebar-width: 220px; --main-pad-x: 28px; }
   .sidebar { width: var(--sidebar-width); min-width: var(--sidebar-width); }
   .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .split-grid { grid-template-columns: 1fr; }
@@ -1090,7 +1094,7 @@ body { overflow-x: hidden; overflow-y: auto; }
    TABLET LANDSCAPE / SMALL LAPTOP
    ========================================================= */
 @media (max-width: 1024px) {
-  :root { --sidebar-width: 200px; --main-pad-x: 22px; --header-space: 116px; }
+  :root { --sidebar-width: 200px; --main-pad-x: 22px; }
   .sidebar { width: var(--sidebar-width); min-width: var(--sidebar-width); padding: 22px 12px; }
   .brand { padding-left: 8px; padding-right: 8px; }
   .panel-header { padding: 18px 18px 14px; }
@@ -1111,8 +1115,10 @@ body { overflow-x: hidden; overflow-y: auto; }
 
   .main {
     position: relative;
+    inset: auto;
     margin-left: 0;
     width: 100%;
+    height: auto;
     min-height: 0;
     overflow: visible;
     padding: 0 14px 32px;
