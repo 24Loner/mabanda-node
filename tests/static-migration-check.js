@@ -1,7 +1,10 @@
 
 const fs=require('fs'),path=require('path');
 const root=path.join(__dirname,'..');
-const source=fs.readFileSync(path.join(root,'server.js'),'utf8')+'\n'+fs.readFileSync(path.join(root,'public','app.js'),'utf8');
+const publicDir=fs.existsSync(path.join(root,'public'))
+  ? path.join(root,'public')
+  : path.join(root,'netlify','public');
+const source=fs.readFileSync(path.join(root,'server.js'),'utf8')+'\n'+fs.readFileSync(path.join(publicDir,'app.js'),'utf8');
 const forbidden=/\b(mysql|mysqli|PDO|MariaDB|AUTO_INCREMENT|ON DUPLICATE KEY UPDATE|LAST_INSERT_ID)\b/i;
 if(forbidden.test(source)) throw new Error('Found a MySQL/PHP database construct in runtime source.');
 const routes=[

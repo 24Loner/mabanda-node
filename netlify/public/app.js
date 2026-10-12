@@ -2234,8 +2234,23 @@ function teacherProfilePage() {
   </section></div>`;
 }
 
+function normalizeStudentRegistrationNumber(value) {
+  const raw = String(value ?? '').trim();
+  const parts = raw.split('/').map(part => part.replace(/\s+/g, '').trim()).filter(Boolean);
+  if (parts.length !== 4) {
+    return raw.replace(/\s+/g, '').toUpperCase();
+  }
+  const [prefix, level, sequence, year] = parts;
+  return `${prefix.toUpperCase()}/${level.toUpperCase()}/${sequence}/${year}`;
+}
+
+function validateStudentRegistrationNumber(value) {
+  const normalized = normalizeStudentRegistrationNumber(value);
+  return /^[A-Z]{3}\/[A-Z0-9]+\/\d{3}\/\d{4}$/.test(normalized);
+}
+
 function studentsPage() {
-  return `<div class="view">${header('Student records', 'Students', 'Register students, manage class placement, and review performance history.', '<button class="primary-btn" id="register-student">+ Register student</button>')}<article class="panel" id="student-form-panel" style="display:none;margin-bottom:16px"><div class="panel-header"><div><h2 class="panel-title">Register student</h2><p class="panel-note">The student will be enrolled in the selected class and academic year.</p></div></div><div class="panel-body"><div class="form-grid"><input class="field" id="new-student-id" placeholder="Student ID"><input class="field" id="new-registration-number" placeholder="Matricule number"><input class="field" id="new-full-name" placeholder="Full name"><select class="select" id="new-gender"><option value="">Gender</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option></select><input class="field" id="new-date-of-birth" type="date"><input class="field" id="new-guardian-name" placeholder="Parent/guardian name"><input class="field" id="new-guardian-phone" placeholder="Parent/guardian phone"><select class="select" id="new-class"><option>Loading classes...</option></select><select class="select" id="new-year"><option>Loading years...</option></select></div><button class="primary-btn" id="save-student">Register student</button><button class="outline-btn" id="cancel-student" style="margin-left:8px">Cancel</button><p class="panel-note" id="student-form-message" style="margin-top:12px"></p></div></article><article class="panel"><div class="toolbar" style="padding:20px 22px 0"><input class="search" id="student-search" placeholder="Search students..."><span class="panel-note" id="student-count">Loading records...</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Student</th><th>Student ID</th><th>Class</th><th>Academic year</th><th>Status</th><th>Actions</th></tr></thead><tbody id="student-directory"><tr><td colspan="6" class="empty">Loading students...</td></tr></tbody></table></div></article><article class="panel" id="student-history-panel" style="margin-top:16px;display:none"></article></div>`;
+  return `<div class="view">${header('Student records', 'Students', 'Register students, manage class placement, and review performance history.', '<button class="primary-btn" id="register-student">+ Register student</button>')}<article class="panel" id="student-form-panel" style="display:none;margin-bottom:16px"><div class="panel-header"><div><h2 class="panel-title">Register student</h2><p class="panel-note">The student will be enrolled in the selected class and academic year.</p></div></div><div class="panel-body"><div class="form-grid"><input class="field" id="new-student-id" placeholder="Student code (optional)"><input class="field" id="new-registration-number" placeholder="ABC/F1/001/2026"><input class="field" id="new-full-name" placeholder="Full name"><select class="select" id="new-gender"><option value="">Gender</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option></select><input class="field" id="new-date-of-birth" type="date"><input class="field" id="new-guardian-name" placeholder="Parent/guardian name"><input class="field" id="new-guardian-phone" placeholder="Parent/guardian phone"><select class="select" id="new-class"><option>Loading classes...</option></select><select class="select" id="new-year"><option>Loading years...</option></select></div><button class="primary-btn" id="save-student">Register student</button><button class="outline-btn" id="cancel-student" style="margin-left:8px">Cancel</button><p class="panel-note" id="student-form-message" style="margin-top:12px"></p></div></article><article class="panel"><div class="toolbar" style="padding:20px 22px 0"><input class="search" id="student-search" placeholder="Search students..."><span class="panel-note" id="student-count">Loading records...</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Student</th><th>Student ID</th><th>Class</th><th>Academic year</th><th>Status</th><th>Actions</th></tr></thead><tbody id="student-directory"><tr><td colspan="6" class="empty">Loading students...</td></tr></tbody></table></div></article><article class="panel" id="student-history-panel" style="margin-top:16px;display:none"></article></div>`;
 }
 
 async function hydrateStudents() {
@@ -2252,21 +2267,30 @@ async function hydrateStudents() {
     document.querySelector('#cancel-student').addEventListener('click', () => { document.querySelector('#student-form-panel').style.display = 'none'; });
     document.querySelector('#save-student').addEventListener('click', async () => {
       const message = document.querySelector('#student-form-message');
+      const registrationNumber = normalizeStudentRegistrationNumber(document.querySelector('#new-registration-number').value);
+      const studentId = document.querySelector('#new-student-id').value.trim();
+
+      if (!validateStudentRegistrationNumber(registrationNumber)) {
+        message.textContent = 'Registration ID must use the format ABC/F1/001/2026.';
+        message.style.color = 'var(--danger)';
+        return;
+      }
+
       try {
-        await apiRequest('/api/admin/students', { method: 'POST', body: JSON.stringify({ student_id: document.querySelector('#new-student-id').value, registration_number: document.querySelector('#new-registration-number').value, full_name: document.querySelector('#new-full-name').value, gender: document.querySelector('#new-gender').value || null, date_of_birth: document.querySelector('#new-date-of-birth').value || null, guardian_name: document.querySelector('#new-guardian-name').value, guardian_phone: document.querySelector('#new-guardian-phone').value, class_id: Number(document.querySelector('#new-class').value), academic_year_id: Number(document.querySelector('#new-year').value) }) });
+        await apiRequest('/api/admin/students', { method: 'POST', body: JSON.stringify({ student_id: studentId || undefined, registration_number: registrationNumber, full_name: document.querySelector('#new-full-name').value, gender: document.querySelector('#new-gender').value || null, date_of_birth: document.querySelector('#new-date-of-birth').value || null, guardian_name: document.querySelector('#new-guardian-name').value, guardian_phone: document.querySelector('#new-guardian-phone').value, class_id: Number(document.querySelector('#new-class').value), academic_year_id: Number(document.querySelector('#new-year').value) }) });
         message.textContent = 'Student registered successfully.'; message.style.color = 'var(--positive)'; document.querySelector('#student-form-panel').style.display = 'none'; const refreshed = await apiRequest('/api/admin/students'); renderRows(refreshed.students);
       } catch (exception) { message.textContent = exception.message; message.style.color = 'var(--danger)'; }
     });
     const directory = document.querySelector('#student-directory');
     const renderRows = records => {
       const page = pagedRecords('students', records);
-      directory.innerHTML = page.records.map(student => `<tr><td class="student-name">${escapeHtml(student.full_name)}</td><td>${escapeHtml(student.student_id)}</td><td>${escapeHtml(student.class_name || 'Unassigned')}</td><td>${escapeHtml(student.academic_year || '—')}</td><td><span class="status ${student.is_active === false ? 'inactive' : ''}">${student.is_active === false ? 'Inactive' : 'Active'}</span></td><td><button class="outline-btn profile-button" data-student-id="${student.id}">Profile</button> <button class="outline-btn deactivate-button" data-student-id="${student.id}">Deactivate</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">No students found.</td></tr>';
+      directory.innerHTML = page.records.map(student => `<tr><td class="student-name">${escapeHtml(student.full_name)}</td><td>${escapeHtml(student.student_id)}</td><td>${escapeHtml(student.class_name || 'Unassigned')}</td><td>${escapeHtml(student.academic_year || '—')}</td><td><span class="status ${student.is_active === false ? 'inactive' : ''}">${student.is_active === false ? 'Inactive' : 'Active'}</span></td><td><button class="outline-btn profile-button" data-student-id="${student.id}">Profile</button> <button class="outline-btn deactivate-button" data-student-id="${student.id}">Delete</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">No students found.</td></tr>';
       document.querySelector('#student-count').textContent = `${records.length} total records`;
       const panel = directory.closest('.panel');
       panel?.querySelector('.pagination')?.remove();
       if (page.total) panel?.insertAdjacentHTML('beforeend', paginationMarkup('students', page.page, page.totalPages, page.total, page.start));
       directory.querySelectorAll('.profile-button').forEach(button => button.addEventListener('click', () => loadStudentHistory(button.dataset.studentId)));
-      directory.querySelectorAll('.deactivate-button').forEach(button => button.addEventListener('click', async () => { if (!confirm('Deactivate this student? Academic history will be preserved.')) return; await apiRequest(`/api/admin/students/${button.dataset.studentId}`, { method: 'DELETE' }); const refreshed = await apiRequest('/api/admin/students'); listPages.students = 1; renderRows(refreshed.students); }));
+      directory.querySelectorAll('.deactivate-button').forEach(button => button.addEventListener('click', async () => { if (!confirm('Delete this student permanently? This action cannot be undone.')) return; await apiRequest(`/api/admin/students/${button.dataset.studentId}`, { method: 'DELETE' }); const refreshed = await apiRequest('/api/admin/students'); listPages.students = 1; renderRows(refreshed.students); }));
       if (panel) bindPagination(panel, 'students', () => renderRows(records));
     };
     renderRows(response.students);

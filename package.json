@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
+    "dev:netlify": "netlify dev",
     "db:schema": "node database/apply-schema.js",
     "db:seed": "node database/seed.js",
     "db:setup": "npm run db:schema && npm run db:seed"

@@ -37,6 +37,19 @@ Demo accounts from the supplied seed use password `password`:
 
 The seed also includes the larger demo teaching dataset from the original `database/demo.sql`.
 
+## Deploy on Netlify
+
+The repository is configured for Netlify Functions and Netlify's static hosting. To connect it for automatic deployments:
+
+1. In Netlify, choose **Add new site → Import an existing project** and authorize the Git provider containing this repository.
+2. Select this repository and the branch to deploy. Keep the base directory at the repository root; `netlify.toml` configures `netlify/public` as the publish directory and `netlify/functions` as the Functions directory.
+3. Add `DATABASE_URL` (a reachable PostgreSQL/Neon connection string) and a strong `SESSION_SECRET` in **Site configuration → Environment variables**. Do not commit these values.
+4. Deploy the site. Pushes to the connected branch will trigger new deployments.
+
+Netlify Blobs are used for background report jobs and are discovered from the linked Netlify site context; do not add a hard-coded site ID or access token. The PostgreSQL database must be provisioned separately, and its schema should be applied with `npm run db:schema` before using the deployed app.
+
+For local development with Netlify's Functions and Blobs emulation, run `npm run dev:netlify` after setting the required values in `.env`. The regular `npm run dev` command continues to run the Express server directly.
+
 ## Neon
 
 Use a Neon connection string such as:
@@ -48,7 +61,7 @@ Credentials are read only from `DATABASE_URL`; none are hard-coded into the appl
 ## Architecture
 
 - `server.js` — Express application and API/backend logic.
-- `public/` — original Mabanda frontend copied from the supplied project, with only the API base changed from the PHP `/mabanda/public` path to the Node origin.
+- `netlify/public/` — original Mabanda frontend copied from the supplied project, with only the API base changed from the PHP `/mabanda/public` path to the Node origin.
 - `database/schema.postgresql.sql` — PostgreSQL schema.
 - `database/seed.sql` — lookup-based PostgreSQL seed/demo data.
 - `database/migrations/` — PostgreSQL equivalents corresponding to the supplied MySQL migrations.

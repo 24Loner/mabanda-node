@@ -4,17 +4,12 @@ const { getStore } = require('@netlify/blobs');
 const JOB_STORE = 'mabanda-report-jobs';
 const FILE_STORE = 'mabanda-report-files';
 
-const blobOptions = {
-  siteID: process.env.NETLIFY_SITE_ID,
-  token: process.env.NETLIFY_AUTH_TOKEN
-};
-
 function jobsStore() {
-  return getStore(JOB_STORE, blobOptions);
+  return getStore(JOB_STORE);
 }
 
 function filesStore() {
-  return getStore(FILE_STORE, blobOptions);
+  return getStore(FILE_STORE);
 }
 
 async function getJob(jobId) {

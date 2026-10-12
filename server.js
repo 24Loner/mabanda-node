@@ -47,7 +47,10 @@ const pool = new Pool({
 });
 
 const ROOT = __dirname;
-const PUBLIC = path.join(ROOT, 'public');
+const FALLBACK_PUBLIC = path.join(ROOT, 'netlify', 'public');
+const PUBLIC = fs.existsSync(path.join(ROOT, 'public'))
+  ? path.join(ROOT, 'public')
+  : FALLBACK_PUBLIC;
 const IS_SERVERLESS = Boolean(
   process.env.NETLIFY ||
   process.env.AWS_LAMBDA_FUNCTION_VERSION ||
@@ -108,6 +111,24 @@ function parseNullableInt(v) {
   return Number.isFinite(n) ? n : null;
 }
 function lowerEmail(v) { return String(v || '').trim().toLowerCase(); }
+function normalizeRegistrationNumber(value) {
+  const raw = String(value ?? '').trim();
+  const parts = raw
+    .split('/')
+    .map(part => part.replace(/\s+/g, '').trim())
+    .filter(Boolean);
+
+  if (parts.length !== 4) {
+    return raw.replace(/\s+/g, '').toUpperCase();
+  }
+
+  const [prefix, level, sequence, year] = parts;
+  return `${prefix.toUpperCase()}/${level.toUpperCase()}/${sequence}/${year}`;
+}
+function isValidRegistrationNumber(value) {
+  const normalized = normalizeRegistrationNumber(value);
+  return /^[A-Z]{3}\/[A-Z0-9]+\/\d{3}\/\d{4}$/.test(normalized);
+}
 function round2(v) { return Math.round((Number(v) + Number.EPSILON) * 100) / 100; }
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[ch]));
@@ -2571,6 +2592,14 @@ app.post('/api/admin/students',async(req,res,next)=>{
     requireCsrf(req);
 
     const b=req.body;
+    const registrationNumber = normalizeRegistrationNumber(b.registration_number);
+
+    if(!isValidRegistrationNumber(registrationNumber)){
+      throw httpError(
+        'Registration ID must use the format ABC/F1/001/2026.',
+        400
+      );
+    }
 
     const id=await tx(async c=>{
       const r=await c.query(
@@ -2586,8 +2615,8 @@ app.post('/api/admin/students',async(req,res,next)=>{
          VALUES($1,$2,$3,$4,$5,$6,$7)
          RETURNING id`,
         [
-          String(b.student_id||'').trim(),
-          String(b.registration_number||'').trim(),
+          String(b.student_id || '').trim() || `ST-${registrationNumber.replace(/[^A-Z0-9]/g, '')}`,
+          registrationNumber,
           String(b.full_name||'').trim(),
           b.gender||null,
           b.date_of_birth||null,
@@ -2640,27 +2669,25 @@ app.delete('/api/admin/students/:id',async(req,res,next)=>{
     requireCsrf(req);
 
     await tx(async c=>{
-      const s=(
+      const student=(
         await c.query(
-          `SELECT id
+          `SELECT id, full_name
            FROM students
            WHERE id=$1
-             AND is_active=TRUE
            LIMIT 1`,
           [req.params.id]
         )
       ).rows[0];
 
-      if(!s){
+      if(!student){
         throw httpError(
-          'Active student not found.',
+          'Student not found.',
           404
         );
       }
 
       await c.query(
-        `UPDATE students
-         SET is_active=FALSE
+        `DELETE FROM students
          WHERE id=$1`,
         [req.params.id]
       );
@@ -2677,22 +2704,23 @@ app.delete('/api/admin/students/:id',async(req,res,next)=>{
          )
          VALUES(
            $1,
-           'deactivated',
+           'deleted',
            'student',
            $2,
            $2,
-           'active',
-           'inactive'
+           $3,
+           'removed'
          )`,
         [
           user.id,
-          req.params.id
+          req.params.id,
+          student.full_name
         ]
       );
     });
 
     json(res,{
-      message:'Student deactivated.'
+      message:'Student deleted.'
     });
 
   }catch(e){
@@ -5171,5 +5199,7 @@ if (require.main === module) {
 
 module.exports = app;
 module.exports.generateClassZip = generateClassZip;
+module.exports.normalizeRegistrationNumber = normalizeRegistrationNumber;
+module.exports.isValidRegistrationNumber = isValidRegistrationNumber;
 
 
