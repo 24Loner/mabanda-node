@@ -248,7 +248,7 @@ async function academicStudents(user,classId,yearId) {
 }
 async function academicResults(user,classId,yearId,sequenceId,termId=0) {
   await assertClassAccess(user,classId);
-  let sql=`SELECT r.*,s.full_name,s.student_id AS student_number,sub.name AS subject_name,sub.max_mark,sub.coefficient,
+  let sql=`SELECT r.*,s.full_name,s.registration_number AS student_number,sub.name AS subject_name,sub.max_mark,sub.coefficient,
            ROUND((r.mark/sub.max_mark*100)::numeric,2) AS percentage,
            ROUND((r.mark*sub.coefficient)::numeric,2) AS weighted_mark,
            COALESCE(g.grade,'Pending') AS grade,COALESCE(g.evaluation,'Pending') AS evaluation
@@ -345,14 +345,14 @@ async function analyticsSubmitted(yearId,termId,sequenceId,teacherId,classId,sub
   const add=(cond,val)=>{params.push(val);where+=` AND ${cond.replace('?',`$${params.length}`)}`;};
   if(teacherId) add('r.entered_by=?',teacherId); if(classId) add('r.class_id=?',classId); if(subjectId) add('r.subject_id=?',subjectId);
   if(search){params.push(`%${search}%`,`%${search}%`);where+=` AND (st.full_name ILIKE $${params.length-1} OR st.student_id ILIKE $${params.length})`;}
-  return (await q(`SELECT r.id,r.mark,r.status,r.updated_at,st.full_name AS student_name,st.student_id AS student_number,c.name AS class_name,sub.name AS subject_name,u.full_name AS teacher_name,seq.name AS sequence_name,term.name AS term_name,ay.label AS academic_year,sub.max_mark,ROUND((r.mark/sub.max_mark*100)::numeric,2) AS percentage
+  return (await q(`SELECT r.id,r.mark,r.status,r.updated_at,st.full_name AS student_name,st.registration_number AS student_number,c.name AS class_name,sub.name AS subject_name,u.full_name AS teacher_name,seq.name AS sequence_name,term.name AS term_name,ay.label AS academic_year,sub.max_mark,ROUND((r.mark/sub.max_mark*100)::numeric,2) AS percentage
     FROM results r INNER JOIN students st ON st.id=r.student_id INNER JOIN classes c ON c.id=r.class_id INNER JOIN subjects sub ON sub.id=r.subject_id INNER JOIN users u ON u.id=r.entered_by INNER JOIN sequences seq ON seq.id=r.sequence_id INNER JOIN terms term ON term.id=r.term_id INNER JOIN academic_years ay ON ay.id=r.academic_year_id WHERE ${where} ORDER BY c.name,st.full_name,sub.name`,params)).rows;
 }
 async function analyticsStudentReports(yearId,termId,sequenceId,classId,search=''){
   let where=`r.academic_year_id=$1 AND r.term_id=$2 AND r.sequence_id=$3`;const params=[yearId,termId,sequenceId];
   if(classId){params.push(classId);where+=` AND r.class_id=$${params.length}`;}
   if(search){params.push(`%${search}%`,`%${search}%`,`%${search}%`);where+=` AND (s.full_name ILIKE $${params.length-2} OR s.student_id ILIKE $${params.length-1} OR s.registration_number ILIKE $${params.length})`;}
-  const rows=(await q(`SELECT r.student_id,r.class_id,r.mark,r.status,s.full_name,s.student_id AS student_number,c.name AS class_name,sub.max_mark,sub.coefficient
+  const rows=(await q(`SELECT r.student_id,r.class_id,r.mark,r.status,s.full_name,s.registration_number AS student_number,c.name AS class_name,sub.max_mark,sub.coefficient
     FROM results r INNER JOIN students s ON s.id=r.student_id INNER JOIN classes c ON c.id=r.class_id INNER JOIN subjects sub ON sub.id=r.subject_id WHERE ${where} ORDER BY s.full_name,c.name`,params)).rows;
   const grouped=new Map();
   for(const row of rows){
@@ -1240,7 +1240,7 @@ async function annualReportData(studentId, classId, yearId) {
 
             <td>
               <b>Student ID:</b>
-              ${escapeHtml(student.student_id)}
+              ${escapeHtml(student.registration_number)}
             </td>
 
           </tr>
@@ -1248,8 +1248,8 @@ async function annualReportData(studentId, classId, yearId) {
           <tr>
 
             <td>
-              <b>Matricule number:</b>
-              ${escapeHtml(student.registration_number)}
+              <b>Internal code:</b>
+              ${escapeHtml(student.student_id)}
             </td>
 
             <td>
@@ -2659,6 +2659,111 @@ app.post('/api/admin/students',async(req,res,next)=>{
   }
 });
 
+app.patch('/api/admin/students/:id',async(req,res,next)=>{
+  try{
+    const user=requireRole(
+      req,
+      ['administrator']
+    );
+
+    requireCsrf(req);
+
+    const b=req.body;
+    const registrationNumber=normalizeRegistrationNumber(b.registration_number);
+    const fullName=String(b.full_name||'').trim();
+    const gender=b.gender||null;
+
+    if(!isValidRegistrationNumber(registrationNumber)){
+      throw httpError(
+        'Registration ID must use the format ABC/F1/001/2026.',
+        400
+      );
+    }
+    if(!fullName){
+      throw httpError(
+        'Student name is required.',
+        400
+      );
+    }
+    if(gender&&!['female','male','other'].includes(gender)){
+      throw httpError(
+        'Select a valid gender.',
+        400
+      );
+    }
+
+    try{
+      await tx(async c=>{
+        const student=(
+          await c.query(
+            `SELECT id,full_name
+             FROM students
+             WHERE id=$1 AND is_active=TRUE
+             FOR UPDATE`,
+            [req.params.id]
+          )
+        ).rows[0];
+
+        if(!student){
+          throw httpError(
+            'Student not found.',
+            404
+          );
+        }
+
+        await c.query(
+          `UPDATE students
+           SET student_id=$1,
+               registration_number=$2,
+               full_name=$3,
+               gender=$4,
+               date_of_birth=$5,
+               guardian_name=$6,
+               guardian_phone=$7
+           WHERE id=$8`,
+          [
+            String(b.student_id||'').trim()||`ST-${registrationNumber.replace(/[^A-Z0-9]/g,'')}`,
+            registrationNumber,
+            fullName,
+            gender,
+            b.date_of_birth||null,
+            String(b.guardian_name||'').trim()||null,
+            String(b.guardian_phone||'').trim()||null,
+            req.params.id
+          ]
+        );
+
+        await c.query(
+          `INSERT INTO audit_logs(
+             user_id,action,entity_type,entity_id,student_id,previous_value,new_value
+           )
+           VALUES($1,'updated','student',$2,$2,$3,$4)`,
+          [
+            user.id,
+            req.params.id,
+            student.full_name,
+            fullName
+          ]
+        );
+      });
+    }catch(e){
+      if(e.code==='23505'){
+        throw httpError(
+          'A student already uses this student code or registration ID.',
+          409
+        );
+      }
+      throw e;
+    }
+
+    json(res,{
+      message:'Student profile updated.'
+    });
+  }catch(e){
+    next(e);
+  }
+});
+
 app.delete('/api/admin/students/:id',async(req,res,next)=>{
   try{
     const user=requireRole(
@@ -2673,7 +2778,7 @@ app.delete('/api/admin/students/:id',async(req,res,next)=>{
         await c.query(
           `SELECT id, full_name
            FROM students
-           WHERE id=$1
+           WHERE id=$1 AND is_active=TRUE
            LIMIT 1`,
           [req.params.id]
         )
@@ -2687,7 +2792,8 @@ app.delete('/api/admin/students/:id',async(req,res,next)=>{
       }
 
       await c.query(
-        `DELETE FROM students
+        `UPDATE students
+         SET is_active=FALSE
          WHERE id=$1`,
         [req.params.id]
       );
@@ -2704,12 +2810,12 @@ app.delete('/api/admin/students/:id',async(req,res,next)=>{
          )
          VALUES(
            $1,
-           'deleted',
+           'archived',
            'student',
            $2,
            $2,
            $3,
-           'removed'
+           'archived'
          )`,
         [
           user.id,
@@ -2720,7 +2826,7 @@ app.delete('/api/admin/students/:id',async(req,res,next)=>{
     });
 
     json(res,{
-      message:'Student deleted.'
+      message:'Student archived. Academic records have been preserved.'
     });
 
   }catch(e){
@@ -3105,8 +3211,8 @@ app.get('/api/admin/classes/:id/classlist',async(req,res,next)=>{
       (student,index)=>`
         <tr>
           <td class="number">${index+1}</td>
-          <td>${escapeHtml(student.student_id || '—')}</td>
           <td>${escapeHtml(student.registration_number || '—')}</td>
+          <td>${escapeHtml(student.student_id || '—')}</td>
           <td class="name">${escapeHtml(student.full_name || '—')}</td>
           <td>${escapeHtml(student.gender || '—')}</td>
           <td>${escapeHtml(formatDate(student.date_of_birth))}</td>
@@ -3378,7 +3484,7 @@ app.get('/api/admin/classes/:id/classlist',async(req,res,next)=>{
       <tr>
         <th>No.</th>
         <th>Student ID</th>
-        <th>Registration No.</th>
+        <th>Internal Code</th>
         <th>Full Name</th>
         <th>Gender</th>
         <th>Date of Birth</th>
@@ -4454,7 +4560,7 @@ app.get('/api/admin/audit',async(req,res,next)=>{
          a.*,
          u.full_name AS actor_name,
          st.full_name AS student_name,
-         st.student_id AS student_number,
+         st.registration_number AS student_number,
          sub.name AS subject_name
        FROM audit_logs a
        INNER JOIN users u
@@ -5201,5 +5307,3 @@ module.exports = app;
 module.exports.generateClassZip = generateClassZip;
 module.exports.normalizeRegistrationNumber = normalizeRegistrationNumber;
 module.exports.isValidRegistrationNumber = isValidRegistrationNumber;
-
-
