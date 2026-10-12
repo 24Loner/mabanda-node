@@ -385,34 +385,67 @@ async function analyticsSubmitted(yearId,termId,sequenceId,teacherId,classId,sub
   const params=[yearId,termId,sequenceId];
   const add=(cond,val)=>{params.push(val);where+=` AND ${cond.replace('?',`$${params.length}`)}`;};
   if(teacherId) add('r.entered_by=?',teacherId); if(classId) add('r.class_id=?',classId); if(subjectId) add('r.subject_id=?',subjectId);
-  if(search){params.push(`%${search}%`,`%${search}%`);where+=` AND (st.full_name ILIKE $${params.length-1} OR st.student_id ILIKE $${params.length})`;}
+  if(search){params.push(`%${search}%`);const searchParam=`$${params.length}`;where+=` AND (st.full_name ILIKE ${searchParam} OR COALESCE(st.student_id,'') ILIKE ${searchParam} OR st.registration_number ILIKE ${searchParam} OR st.id::text ILIKE ${searchParam})`;}
   return (await q(`SELECT r.id,r.mark,r.status,r.updated_at,st.full_name AS student_name,st.registration_number AS student_number,c.name AS class_name,sub.name AS subject_name,u.full_name AS teacher_name,seq.name AS sequence_name,term.name AS term_name,ay.label AS academic_year,sub.max_mark,ROUND((r.mark/sub.max_mark*100)::numeric,2) AS percentage
     FROM results r INNER JOIN students st ON st.id=r.student_id INNER JOIN classes c ON c.id=r.class_id INNER JOIN subjects sub ON sub.id=r.subject_id INNER JOIN users u ON u.id=r.entered_by INNER JOIN sequences seq ON seq.id=r.sequence_id INNER JOIN terms term ON term.id=r.term_id INNER JOIN academic_years ay ON ay.id=r.academic_year_id WHERE ${where} ORDER BY c.name,st.full_name,sub.name`,params)).rows;
 }
-async function analyticsStudentReports(yearId,termId,sequenceId,classId,search=''){
+async function analyticsStudentReports(req,yearId,termId,sequenceId,classId,search=''){
   let where=`r.academic_year_id=$1 AND r.term_id=$2 AND r.sequence_id=$3`;const params=[yearId,termId,sequenceId];
   if(classId){params.push(classId);where+=` AND r.class_id=$${params.length}`;}
-  if(search){params.push(`%${search}%`,`%${search}%`,`%${search}%`);where+=` AND (s.full_name ILIKE $${params.length-2} OR s.student_id ILIKE $${params.length-1} OR s.registration_number ILIKE $${params.length})`;}
-  const rows=(await q(`SELECT r.student_id,r.class_id,r.mark,r.status,s.full_name,s.registration_number AS student_number,c.name AS class_name,sub.max_mark,sub.coefficient
-    FROM results r INNER JOIN students s ON s.id=r.student_id INNER JOIN classes c ON c.id=r.class_id INNER JOIN subjects sub ON sub.id=r.subject_id WHERE ${where} ORDER BY s.full_name,c.name`,params)).rows;
-  const grouped=new Map();
-  for(const row of rows){
-    const key=`${row.student_id}:${row.class_id}`;
-    if(!grouped.has(key)) grouped.set(key,{student_id:Number(row.student_id),student_number:row.student_number,student_name:row.full_name,class_id:Number(row.class_id),class_name:row.class_name,total_weight:0,total_possible:0,subjects:0,submitted:true});
-    const x=grouped.get(key);x.total_weight+=Number(row.mark)*Number(row.coefficient);x.total_possible+=Number(row.max_mark)*Number(row.coefficient);x.subjects++;x.submitted=x.submitted&&['submitted','approved','locked'].includes(row.status);
-  }
-  const reports=[...grouped.values()].map(x=>{x.average=x.total_possible>0?round2(x.total_weight/x.total_possible*100):0;delete x.total_weight;delete x.total_possible;return x;});
-  reports.sort((a,b)=>b.average-a.average);reports.forEach((x,i)=>x.position=i+1);return reports;
+  if(search){params.push(`%${search}%`);const searchParam=`$${params.length}`;where+=` AND (s.full_name ILIKE ${searchParam} OR COALESCE(s.student_id,'') ILIKE ${searchParam} OR s.registration_number ILIKE ${searchParam} OR s.id::text ILIKE ${searchParam})`;}
+  const reportCtes=`WITH filtered AS (
+      SELECT r.student_id,r.class_id,r.mark,r.status,s.full_name,s.registration_number AS student_number,c.name AS class_name,sub.max_mark,sub.coefficient
+      FROM results r
+      INNER JOIN students s ON s.id=r.student_id
+      INNER JOIN classes c ON c.id=r.class_id
+      INNER JOIN subjects sub ON sub.id=r.subject_id
+      WHERE ${where}
+    ), grouped AS (
+      SELECT student_id,class_id,student_number,full_name AS student_name,class_name,
+        COUNT(*)::int AS subjects,
+        SUM(mark*coefficient) AS total_weight,
+        SUM(max_mark*coefficient) AS total_possible,
+        BOOL_AND(status IN ('submitted','approved','locked')) AS submitted
+      FROM filtered
+      GROUP BY student_id,class_id,student_number,full_name,class_name
+    ), ranked AS (
+      SELECT student_id,class_id,student_number,student_name,class_name,subjects,submitted,
+        COALESCE(ROUND((total_weight/NULLIF(total_possible,0)*100)::numeric,2),0) AS average,
+        ROW_NUMBER() OVER (ORDER BY COALESCE(ROUND((total_weight/NULLIF(total_possible,0)*100)::numeric,2),0) DESC,student_name,class_name,student_id) AS position
+      FROM grouped
+    )`;
+  const result=await pagedQuery(
+    req,
+    `${reportCtes}
+     SELECT student_id,student_number,student_name,class_id,class_name,subjects,submitted,average,position
+     FROM ranked
+     ORDER BY position`,
+    `${reportCtes} SELECT COUNT(*) AS total FROM grouped`,
+    params
+  );
+  return {
+    reports:result.rows.map(row=>({...row,student_id:Number(row.student_id),class_id:Number(row.class_id),average:Number(row.average),position:Number(row.position)})),
+    pagination:result.pagination
+  };
 }
 async function analyticsDashboard(yearId,sequenceId,classId,subjectId,termId){
   let where=`r.academic_year_id=$1 AND r.sequence_id=$2`;const params=[yearId,sequenceId];
   if(termId){params.push(termId);where+=` AND r.term_id=$${params.length}`;}if(classId){params.push(classId);where+=` AND r.class_id=$${params.length}`;}if(subjectId){params.push(subjectId);where+=` AND r.subject_id=$${params.length}`;}
-  const rows=(await q(`SELECT r.mark,sub.max_mark,sub.name AS subject_name,c.name AS class_name,r.student_id FROM results r INNER JOIN subjects sub ON sub.id=r.subject_id INNER JOIN classes c ON c.id=r.class_id WHERE ${where}`,params)).rows;
-  const classMap={},subjectMap={};let passed=0;
-  for(const row of rows){const p=Number(row.mark)/Number(row.max_mark)*100;if(p>=40)passed++;(classMap[row.class_name]??=[]).push(p);(subjectMap[row.subject_name]??=[]).push(p);}
+  const rows=(await q(`SELECT r.mark,sub.max_mark,sub.name AS subject_name,c.id AS class_id,c.name AS class_name,r.student_id FROM results r INNER JOIN subjects sub ON sub.id=r.subject_id INNER JOIN classes c ON c.id=r.class_id WHERE ${where}`,params)).rows;
+  const classMap=new Map(),subjectMap={};let passed=0;
+  for(const row of rows){
+    const p=Number(row.mark)/Number(row.max_mark)*100;
+    if(p>=40)passed++;
+    if(!classMap.has(Number(row.class_id))) classMap.set(Number(row.class_id),{id:Number(row.class_id),name:row.class_name,percentages:[],students:new Set(),passed:0});
+    const classData=classMap.get(Number(row.class_id));
+    classData.percentages.push(p);
+    classData.students.add(Number(row.student_id));
+    if(p>=40)classData.passed++;
+    (subjectMap[row.subject_name]??=[]).push(p);
+  }
   const average=rows.length?round2(rows.reduce((a,r)=>a+Number(r.mark)/Number(r.max_mark)*100,0)/rows.length):0;
   const reduce=v=>round2(v.reduce((a,x)=>a+x,0)/v.length);
-  const classes=Object.entries(classMap).map(([name,v])=>({name,average:reduce(v)})).sort((a,b)=>b.average-a.average);
+  const classes=[...classMap.values()].map(item=>({id:item.id,name:item.name,average:reduce(item.percentages),student_count:item.students.size,pass_rate:round2(item.passed/item.percentages.length*100)})).sort((a,b)=>b.average-a.average);
   const subjects=Object.entries(subjectMap).map(([name,v])=>({name,average:reduce(v)})).sort((a,b)=>b.average-a.average);
   return {total_students:new Set(rows.map(r=>r.student_id)).size,overall_average:average,passing_results:passed,failing_results:rows.length-passed,pass_percentage:rows.length?round2(passed/rows.length*100):0,
     classes,subjects,best_class:classes[0]||null,lowest_class:classes.at(-1)||null,best_subject:subjects[0]||null,weakest_subject:subjects.at(-1)||null};
@@ -2614,7 +2647,9 @@ app.get('/api/admin/students',async(req,res,next)=>{
          ON ay.id=cs.academic_year_id
        WHERE s.is_active=TRUE
          AND ($1='' OR s.full_name ILIKE '%' || $1 || '%'
+           OR COALESCE(s.student_id,'') ILIKE '%' || $1 || '%'
            OR s.registration_number ILIKE '%' || $1 || '%'
+           OR s.id::text ILIKE '%' || $1 || '%'
            OR COALESCE(c.name,'') ILIKE '%' || $1 || '%')
        ORDER BY s.full_name,s.id,cs.academic_year_id DESC NULLS LAST,cs.class_id`,
       `SELECT COUNT(*) AS total
@@ -2625,7 +2660,9 @@ app.get('/api/admin/students',async(req,res,next)=>{
          ON c.id=cs.class_id
        WHERE s.is_active=TRUE
          AND ($1='' OR s.full_name ILIKE '%' || $1 || '%'
+           OR COALESCE(s.student_id,'') ILIKE '%' || $1 || '%'
            OR s.registration_number ILIKE '%' || $1 || '%'
+           OR s.id::text ILIKE '%' || $1 || '%'
            OR COALESCE(c.name,'') ILIKE '%' || $1 || '%')`,
       [search]
     );
@@ -4710,8 +4747,8 @@ app.get('/api/admin/reports',async(req,res,next)=>{
       ['administrator']
     );
 
-    json(res,{
-      reports:await analyticsStudentReports(
+    const result=await analyticsStudentReports(
+        req,
         parseIntParam(
           req.query.academic_year_id
         ),
@@ -4727,7 +4764,11 @@ app.get('/api/admin/reports',async(req,res,next)=>{
         String(
           req.query.search||''
         ).trim()
-      )
+      );
+
+    json(res,{
+      reports:result.reports,
+      ...(result.pagination ? { pagination:result.pagination } : {})
     });
 
   }catch(e){

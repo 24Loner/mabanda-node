@@ -214,12 +214,15 @@ function dashboard() {
         </tbody>
       </table>
     </div>
+    <div class="panel-body" id="dashboard-class-detail">
+      <div class="empty">Select a class to view its performance.</div>
+    </div>
   </section>
   </div>`;
 }
 function genericPage(title, copy, label) { return `<div class="view">${header(label, title, copy, '<button class="primary-btn" data-toast="Action queued">+ Add new</button>')}<article class="panel"><div class="toolbar" style="padding:20px 22px 0"><input class="search" placeholder="Search records..."><button class="outline-btn">Filter</button></div><div class="empty">This workspace is ready for your ${title.toLowerCase()} data.<br><span style="font-size:12px;color:#61718a">Connect the secure application API here without changing the visual system.</span></div></article></div>`; }
 function reportsPage() {
-  return `<div class="view">${header('Administration', 'Report cards', 'Review compiled marks across all registered subjects and print student report cards.', '<button class="outline-btn" data-view="settings">Submitted reports</button>')}<article class="panel"><div class="panel-body"><div class="form-grid"><select class="select" id="reports-year"><option>Loading years...</option></select><select class="select" id="reports-term"><option>Choose term...</option></select><select class="select" id="reports-sequence"><option>Choose sequence...</option></select><select class="select" id="reports-class"><option value="">All classes</option></select><div style="display:flex;gap:8px;align-items:center"><input class="field" id="reports-search" placeholder="Search student name or ID"><button class="primary-btn" id="reports-search-btn" type="button">Search</button><button class="outline-btn" id="reports-refresh-btn" type="button">Refresh</button></div></div><div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="primary-btn" id="print-class-reports" disabled>Print all class report cards</button></div></div></article><article class="panel" style="margin-top:16px"><div class="panel-header"><div><h2 class="panel-title">Compiled student marks</h2><p class="panel-note" id="reports-summary">Choose a reporting period to load compiled results.</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Position</th><th>Student</th><th>Student ID</th><th>Class</th><th>Subjects</th><th>Average</th><th>Status</th><th>Print</th></tr></thead><tbody id="reports-list"><tr><td colspan="8" class="empty">Select a year, term and sequence.</td></tr></tbody></table></div></article></div>`;
+  return `<div class="view">${header('Administration', 'Report cards', 'Review compiled marks across all registered subjects and print student report cards.', '<button class="outline-btn" data-view="settings">Submitted reports</button>')}<article class="panel"><div class="panel-body"><div class="form-grid"><select class="select" id="reports-year"><option>Loading years...</option></select><select class="select" id="reports-term"><option>Choose term...</option></select><select class="select" id="reports-sequence"><option>Choose sequence...</option></select><select class="select" id="reports-class"><option value="">All classes</option></select><div style="display:flex;gap:8px;align-items:center"><input class="field" id="reports-search" placeholder="Search by name, student ID or registration number"><button class="primary-btn" id="reports-search-btn" type="button">Search</button><button class="outline-btn" id="reports-refresh-btn" type="button">Refresh</button></div></div><div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="primary-btn" id="print-class-reports" disabled>Print all class report cards</button></div></div></article><article class="panel" style="margin-top:16px"><div class="panel-header"><div><h2 class="panel-title">Compiled student marks</h2><p class="panel-note" id="reports-summary">Choose a reporting period to load compiled results.</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Position</th><th>Student</th><th>Student ID</th><th>Class</th><th>Subjects</th><th>Average</th><th>Status</th><th>Print</th></tr></thead><tbody id="reports-list"><tr><td colspan="8" class="empty">Select a year, term and sequence.</td></tr></tbody></table></div></article></div>`;
 }
 async function hydrateReports() {
   if (window.location.protocol === 'file:') return;
@@ -249,10 +252,22 @@ async function hydrateReports() {
     };
     const loadReports = async () => {
       if (!termSelect.value || !sequenceSelect.value) return;
-      const params = new URLSearchParams({ academic_year_id: yearSelect.value, term_id: termSelect.value, sequence_id: sequenceSelect.value, class_id: classSelect.value, search: searchInput.value });
-      const response = await apiRequest(`/api/admin/reports?${params}`);
+      const response = await apiRequest(paginatedUrl('/api/admin/reports', 'reportCards', {
+        academic_year_id: yearSelect.value,
+        term_id: termSelect.value,
+        sequence_id: sequenceSelect.value,
+        class_id: classSelect.value,
+        search: searchInput.value.trim()
+      }));
       list.innerHTML = response.reports.map(item => `<tr><td>${item.position}</td><td class="student-name">${escapeHtml(item.student_name)}</td><td>${escapeHtml(item.student_number)}</td><td>${escapeHtml(item.class_name)}</td><td>${item.subjects}</td><td class="student-name">${item.average}%</td><td><span class="status ${item.submitted ? 'approved' : 'pending'}">${item.submitted ? 'Ready' : 'Incomplete'}</span></td><td><button class="outline-btn report-download" data-student="${item.student_id}" data-class="${item.class_id}">Print PDF</button></td></tr>`).join('') || '<tr><td colspan="8" class="empty">No compiled marks found for these filters.</td></tr>';
-      summary.textContent = `${response.reports.length} compiled student report${response.reports.length === 1 ? '' : 's'} found.`;
+      const total = response.pagination?.total ?? response.reports.length;
+      summary.textContent = `${total} compiled student report${total === 1 ? '' : 's'} found.`;
+      const panel = list.closest('.panel');
+      panel?.querySelector('.pagination')?.remove();
+      if (response.pagination?.total) {
+        panel?.insertAdjacentHTML('beforeend', paginationMarkup('reportCards', response.pagination));
+      }
+      if (panel) bindPagination(panel, 'reportCards', loadReports);
      list.querySelectorAll('.report-download').forEach(button =>
   button.addEventListener('click', async () => {
     const originalText = button.textContent;
@@ -353,26 +368,34 @@ async function hydrateReports() {
   })
 );
     };
-    yearSelect.addEventListener('change', loadTerms);
-    termSelect.addEventListener('change', loadSequences);
-    sequenceSelect.addEventListener('change', loadReports);
-    classSelect.addEventListener('change', loadReports);
+    yearSelect.addEventListener('change', () => { listPages.reportCards = 1; loadTerms(); });
+    termSelect.addEventListener('change', () => { listPages.reportCards = 1; loadSequences(); });
+    sequenceSelect.addEventListener('change', () => { listPages.reportCards = 1; loadReports(); });
+    classSelect.addEventListener('change', () => { listPages.reportCards = 1; loadReports(); });
+    let searchTimer;
     searchInput.addEventListener('input', () => {
-      if (searchInput.value.trim() === '') loadReports();
+      clearTimeout(searchTimer);
+      listPages.reportCards = 1;
+      searchTimer = setTimeout(() => loadReports().catch(exception => {
+        list.innerHTML = `<tr><td colspan="8" class="empty" style="color:var(--danger)">${escapeHtml(exception.message)}</td></tr>`;
+      }), 250);
     });
     searchInput.addEventListener('keydown', event => {
       if (event.key === 'Enter') {
         event.preventDefault();
+        listPages.reportCards = 1;
         loadReports();
       }
     });
-    searchButton.addEventListener('click', loadReports);
+    searchButton.addEventListener('click', () => { listPages.reportCards = 1; loadReports(); });
     refreshButton.addEventListener('click', () => {
       searchInput.value = '';
+      listPages.reportCards = 1;
       loadReports();
     });
     classSelect.addEventListener('change', () => {
       bulkButton.disabled = !classSelect.value;
+      listPages.reportCards = 1;
     });
 
     let activeReportPoll = null;
@@ -2124,8 +2147,50 @@ async function hydrateResultEntry() {
   }
 }
 
+async function showClassPerformance(container, classId, className, academicYearId, termId, sequenceId) {
+  container.innerHTML = '<div class="panel-body"><div class="empty">Loading class performance...</div></div>';
+  try {
+    const params = new URLSearchParams({
+      academic_year_id: academicYearId,
+      term_id: termId || '',
+      sequence_id: sequenceId,
+      class_id: classId
+    });
+    const response = await apiRequest(`/api/admin/analytics?${params}`);
+    const analytics = response.analytics;
+    const classData = analytics.classes[0];
+    if (!classData) {
+      container.innerHTML = `<div class="panel-body"><div class="empty">No results found for ${escapeHtml(className)} in this reporting period.</div></div>`;
+      return;
+    }
+    const needsAttention = classData.average < 70;
+    const subjects = analytics.subjects.map(subject => `
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);color:var(--muted-bright)">
+        <span>${escapeHtml(subject.name)}</span><strong style="color:var(--text)">${subject.average}%</strong>
+      </div>
+    `).join('') || '<div class="empty">No subject results found.</div>';
+    container.innerHTML = `
+      <div class="panel-header">
+        <div><h2 class="panel-title">${escapeHtml(className)} performance</h2><p class="panel-note">Performance details for the selected reporting period</p></div>
+        <span class="status ${needsAttention ? 'pending' : 'approved'}">${needsAttention ? 'Needs attention' : 'On track'}</span>
+      </div>
+      <div class="panel-body">
+        <section class="grid stats-grid">
+          ${stat('Class average', `${classData.average}%`, '70% target', 'AVG')}
+          ${stat('Pass rate', `${classData.pass_rate}%`, 'Results at or above 40%', 'PASS')}
+          ${stat('Students assessed', classData.student_count, 'With recorded results', 'ST')}
+        </section>
+        <h3 class="panel-title" style="margin-top:16px">Subject performance</h3>
+        ${subjects}
+      </div>
+    `;
+  } catch (exception) {
+    container.innerHTML = `<div class="panel-body"><div class="empty" style="color:var(--danger)">${escapeHtml(exception.message)}</div></div>`;
+  }
+}
+
 function analyticsPage() {
-  return `<div class="view">${header('Administrator insights', 'Performance analytics', 'Compare classes, subjects and pass rates for the selected sequence.', '<button class="outline-btn" data-view="dashboard">Back to overview</button>')}<article class="panel"><div class="panel-body"><div class="form-grid"><select class="select" id="analytics-year"><option>Loading years...</option></select><select class="select" id="analytics-term"><option>Choose term...</option></select><select class="select" id="analytics-sequence"><option>Choose sequence...</option></select></div></div></article><section class="grid stats-grid" id="analytics-stats"><article class="panel stat-card"><div class="stat-head"><span>Overall average</span></div><div class="stat-value">Loading</div></article><article class="panel stat-card"><div class="stat-head"><span>Pass percentage</span></div><div class="stat-value">Loading</div></article><article class="panel stat-card"><div class="stat-head"><span>Best class</span></div><div class="stat-value">Loading</div></article><article class="panel stat-card"><div class="stat-head"><span>Students</span></div><div class="stat-value">Loading</div></article></section><section class="grid split-grid"><article class="panel"><div class="panel-header"><div><h2 class="panel-title">Performance by class</h2><p class="panel-note">Weighted class averages</p></div></div><div class="panel-body" id="analytics-classes"><div class="empty">Loading analytics...</div></div></article><article class="panel"><div class="panel-header"><div><h2 class="panel-title">Performance by subject</h2><p class="panel-note">Average percentage</p></div></div><div class="panel-body" id="analytics-subjects"><div class="empty">Loading analytics...</div></div></article></section></div>`;
+  return `<div class="view">${header('Administrator insights', 'Performance analytics', 'Compare classes, subjects and pass rates for the selected sequence.', '<button class="outline-btn" data-view="dashboard">Back to overview</button>')}<article class="panel"><div class="panel-body"><div class="form-grid"><select class="select" id="analytics-year"><option>Loading years...</option></select><select class="select" id="analytics-term"><option>Choose term...</option></select><select class="select" id="analytics-sequence"><option>Choose sequence...</option></select></div></div></article><section class="grid stats-grid" id="analytics-stats"><article class="panel stat-card"><div class="stat-head"><span>Overall average</span></div><div class="stat-value">Loading</div></article><article class="panel stat-card"><div class="stat-head"><span>Pass percentage</span></div><div class="stat-value">Loading</div></article><article class="panel stat-card"><div class="stat-head"><span>Best class</span></div><div class="stat-value">Loading</div></article><article class="panel stat-card"><div class="stat-head"><span>Students</span></div><div class="stat-value">Loading</div></article></section><section class="grid split-grid"><article class="panel"><div class="panel-header"><div><h2 class="panel-title">Performance by class</h2><p class="panel-note">Select a class to see its detailed performance</p></div></div><div class="panel-body" id="analytics-classes"><div class="empty">Loading analytics...</div></div></article><article class="panel"><div class="panel-header"><div><h2 class="panel-title">Performance by subject</h2><p class="panel-note">Average percentage</p></div></div><div class="panel-body" id="analytics-subjects"><div class="empty">Loading analytics...</div></div></article></section><article class="panel" id="analytics-class-detail" style="margin-top:16px"><div class="panel-body"><div class="empty">Select a class above to view its performance and attention status.</div></div></article></div>`;
 }
 
 async function hydrateAnalytics() {
@@ -2134,7 +2199,17 @@ async function hydrateAnalytics() {
   const sequenceSelect = document.querySelector('#analytics-sequence');
   const renderAnalytics = data => {
     document.querySelector('#analytics-stats').innerHTML = [['Overall average', `${data.overall_average}%`], ['Pass percentage', `${data.pass_percentage}%`], ['Best class', data.best_class?.name || '?'], ['Students', data.total_students]].map(item => `<article class="panel stat-card"><div class="stat-head"><span>${item[0]}</span></div><div class="stat-value">${item[1]}</div></article>`).join('');
-    document.querySelector('#analytics-classes').innerHTML = data.classes.map(item => `<div style="display:flex;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--line);color:var(--muted-bright)"><span>${escapeHtml(item.name)}</span><strong style="color:var(--blue-bright)">${item.average}%</strong></div>`).join('') || '<div class="empty">No class results found.</div>';
+    document.querySelector('#analytics-classes').innerHTML = data.classes.map(item => `<div style="display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid var(--line);color:var(--muted-bright)">${item.id ? `<button type="button" class="class-performance-link" data-class-id="${item.id}" data-class-name="${escapeHtml(item.name)}">${escapeHtml(item.name)}</button>` : `<span>${escapeHtml(item.name)}</span>`}<strong style="color:var(--blue-bright)">${item.average}%</strong></div>`).join('') || '<div class="empty">No class results found.</div>';
+    document.querySelectorAll('#analytics-classes .class-performance-link').forEach(button => {
+      button.addEventListener('click', () => showClassPerformance(
+        document.querySelector('#analytics-class-detail'),
+        button.dataset.classId,
+        button.dataset.className,
+        yearSelect.value,
+        termSelect.value,
+        sequenceSelect.value
+      ));
+    });
     document.querySelector('#analytics-subjects').innerHTML = data.subjects.map(item => `<div style="display:flex;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--line);color:var(--muted-bright)"><span>${escapeHtml(item.name)}</span><strong style="color:var(--blue-bright)">${item.average}%</strong></div>`).join('') || '<div class="empty">No subject results found.</div>';
   };
   if (window.location.protocol === 'file:') {
@@ -2284,7 +2359,7 @@ function validateStudentRegistrationNumber(value) {
 }
 
 function studentsPage() {
-  return `<div class="view">${header('Student records', 'Students', 'Register students, manage class placement, and review performance history.', '<button class="primary-btn" id="register-student">+ Register student</button>')}<article class="panel" id="student-form-panel" style="display:none;margin-bottom:16px"><div class="panel-header"><div><h2 class="panel-title" id="student-form-title">Register student</h2><p class="panel-note" id="student-form-note">The student will be enrolled in the selected class and academic year.</p></div></div><div class="panel-body"><div class="form-grid"><input class="field" id="new-student-id" placeholder="Student code (optional)"><input class="field" id="new-registration-number" placeholder="ABC/F1/001/2026"><input class="field" id="new-full-name" placeholder="Full name"><select class="select" id="new-gender"><option value="">Gender</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option></select><input class="field" id="new-date-of-birth" type="date"><input class="field" id="new-guardian-name" placeholder="Parent/guardian name"><input class="field" id="new-guardian-phone" placeholder="Parent/guardian phone"><select class="select" id="new-class"><option>Loading classes...</option></select><select class="select" id="new-year"><option>Loading years...</option></select></div><button class="primary-btn" id="save-student">Register student</button><button class="outline-btn" id="cancel-student" style="margin-left:8px">Cancel</button><p class="panel-note" id="student-form-message" style="margin-top:12px"></p></div></article><article class="panel"><div class="toolbar" style="padding:20px 22px 0"><input class="search" id="student-search" placeholder="Search students..."><span class="panel-note" id="student-count">Loading records...</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Student</th><th>Student ID</th><th>Class</th><th>Academic year</th><th>Status</th><th>Actions</th></tr></thead><tbody id="student-directory"><tr><td colspan="6" class="empty">Loading students...</td></tr></tbody></table></div></article><article class="panel" id="student-history-panel" style="margin-top:16px;display:none"></article></div>`;
+  return `<div class="view">${header('Student records', 'Students', 'Register students, manage class placement, and review performance history.', '<button class="primary-btn" id="register-student">+ Register student</button>')}<article class="panel" id="student-form-panel" style="display:none;margin-bottom:16px"><div class="panel-header"><div><h2 class="panel-title" id="student-form-title">Register student</h2><p class="panel-note" id="student-form-note">The student will be enrolled in the selected class and academic year.</p></div></div><div class="panel-body"><div class="form-grid"><input class="field" id="new-student-id" placeholder="Student code (optional)"><input class="field" id="new-registration-number" placeholder="ABC/F1/001/2026"><input class="field" id="new-full-name" placeholder="Full name"><select class="select" id="new-gender"><option value="">Gender</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option></select><input class="field" id="new-date-of-birth" type="date"><input class="field" id="new-guardian-name" placeholder="Parent/guardian name"><input class="field" id="new-guardian-phone" placeholder="Parent/guardian phone"><select class="select" id="new-class"><option>Loading classes...</option></select><select class="select" id="new-year"><option>Loading years...</option></select></div><button class="primary-btn" id="save-student">Register student</button><button class="outline-btn" id="cancel-student" style="margin-left:8px">Cancel</button><p class="panel-note" id="student-form-message" style="margin-top:12px"></p></div></article><article class="panel"><div class="toolbar" style="padding:20px 22px 0"><input class="search" id="student-search" placeholder="Search by name, student ID or registration number"><span class="panel-note" id="student-count">Loading records...</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Student</th><th>Student ID</th><th>Class</th><th>Academic year</th><th>Status</th><th>Actions</th></tr></thead><tbody id="student-directory"><tr><td colspan="6" class="empty">Loading students...</td></tr></tbody></table></div></article><article class="panel" id="student-history-panel" style="margin-top:16px;display:none"></article></div>`;
 }
 
 async function hydrateStudents() {
@@ -2536,7 +2611,9 @@ async function hydrateRoleDashboard() {
           return `
             <tr>
               <td class="student-name">
-                ${escapeHtml(item.name)}
+                <button type="button" class="class-performance-link" data-class-id="${details.id || item.id}" data-class-name="${escapeHtml(item.name)}">
+                  ${escapeHtml(item.name)}
+                </button>
               </td>
               <td>
                 ${escapeHtml(details.class_master_name || 'Unassigned')}
@@ -2559,6 +2636,16 @@ async function hydrateRoleDashboard() {
             </td>
           </tr>
         `;
+        classTable.querySelectorAll('.class-performance-link').forEach(button => {
+          button.addEventListener('click', () => showClassPerformance(
+            document.querySelector('#dashboard-class-detail'),
+            button.dataset.classId,
+            button.dataset.className,
+            data.academic_year.id,
+            '',
+            data.sequence.id
+          ));
+        });
       }
 
       return;
@@ -2836,7 +2923,7 @@ async function hydrateTeacherProfile() {
 }
 
 function settingsPage() {
-  return `<div class="view">${header('Administration', 'Submitted reports', 'Review marks submitted by each teacher, class and subject.', '<button class="outline-btn" data-view="reports">Report cards</button>')}<article class="panel"><div class="panel-body"><div class="form-grid"><select class="select" id="submitted-year"><option>Loading years...</option></select><select class="select" id="submitted-term"><option>Choose term...</option></select><select class="select" id="submitted-sequence"><option>Choose sequence...</option></select><select class="select" id="submitted-teacher"><option value="">All teachers</option></select><select class="select" id="submitted-class"><option value="">All classes</option></select><select class="select" id="submitted-subject"><option value="">All subjects</option></select><div style="display:flex;gap:8px;align-items:center"><input class="field" id="submitted-search" placeholder="Search student name or ID"><button class="primary-btn" id="submitted-search-btn" type="button">Search</button></div></div></div></article><article class="panel" style="margin-top:16px"><div class="panel-header"><div><h2 class="panel-title">Submitted marks</h2><p class="panel-note" id="submitted-summary">Choose a reporting period to load submitted reports.</p></div><button class="outline-btn" id="refresh-submitted-reports">Refresh</button></div><div id="submitted-reports" class="table-wrap"><div class="empty">Loading submitted reports...</div></div></article></div>`;
+  return `<div class="view">${header('Administration', 'Submitted reports', 'Review marks submitted by each teacher, class and subject.', '<button class="outline-btn" data-view="reports">Report cards</button>')}<article class="panel"><div class="panel-body"><div class="form-grid"><select class="select" id="submitted-year"><option>Loading years...</option></select><select class="select" id="submitted-term"><option>Choose term...</option></select><select class="select" id="submitted-sequence"><option>Choose sequence...</option></select><select class="select" id="submitted-teacher"><option value="">All teachers</option></select><select class="select" id="submitted-class"><option value="">All classes</option></select><select class="select" id="submitted-subject"><option value="">All subjects</option></select><div style="display:flex;gap:8px;align-items:center"><input class="field" id="submitted-search" placeholder="Search by name, student ID or registration number"><button class="primary-btn" id="submitted-search-btn" type="button">Search</button></div></div></div></article><article class="panel" style="margin-top:16px"><div class="panel-header"><div><h2 class="panel-title">Submitted marks</h2><p class="panel-note" id="submitted-summary">Choose a reporting period to load submitted reports.</p></div><button class="outline-btn" id="refresh-submitted-reports">Refresh</button></div><div id="submitted-reports" class="table-wrap"><div class="empty">Loading submitted reports...</div></div></article></div>`;
 }
 
 async function hydrateSettings() {
@@ -2859,6 +2946,7 @@ async function hydrateSettings() {
     const demoReports = students.map((student, index) => ({
       teacher_name: 'Mr. John',
       student_name: student[1],
+      student_number: student[0],
       class_name: student[2],
       subject_name: student[3],
       mark: student[4].split(' ')[0],
@@ -2869,7 +2957,7 @@ async function hydrateSettings() {
     }));
     const renderDemoReports = () => {
       const search = searchInput.value.trim().toLowerCase();
-      const matches = demoReports.filter(item => !search || item.student_name.toLowerCase().includes(search));
+      const matches = demoReports.filter(item => !search || `${item.student_name} ${item.student_number}`.toLowerCase().includes(search));
       container.innerHTML = `<table class="data-table"><thead><tr><th>Teacher</th><th>Student</th><th>Class</th><th>Subject</th><th>Mark</th><th>Percentage</th><th>Status</th><th>Submitted</th></tr></thead><tbody>${matches.map(item => `<tr><td>${escapeHtml(item.teacher_name)}</td><td class="student-name">${escapeHtml(item.student_name)}</td><td>${escapeHtml(item.class_name)}</td><td>${escapeHtml(item.subject_name)}</td><td>${item.mark}/${item.max_mark}</td><td class="student-name">${item.percentage}%</td><td><span class="status approved">${escapeHtml(item.status)}</span></td><td>${escapeHtml(item.updated_at)}</td></tr>`).join('') || '<tr><td colspan="8" class="empty">No submitted reports found for that student.</td></tr>'}</tbody></table>`;
       summary.textContent = `${matches.length} submitted report${matches.length === 1 ? '' : 's'} found.`;
     };
@@ -2908,8 +2996,7 @@ async function hydrateSettings() {
       const searchValue = (searchInput.value || '').trim();
       const params = new URLSearchParams({ academic_year_id: yearSelect.value, term_id: termSelect.value, sequence_id: sequenceSelect.value, teacher_id: teacherSelect.value, class_id: classSelect.value, subject_id: subjectSelect.value, search: searchValue });
       const response = await apiRequest(`/api/admin/submitted-reports?${params}`);
-      const normalizedSearch = searchValue.toLowerCase();
-      const reports = response.reports.filter(item => !normalizedSearch || `${item.student_name} ${item.student_number || ''}`.toLowerCase().includes(normalizedSearch));
+      const reports = response.reports;
       container.innerHTML = `<table class="data-table"><thead><tr><th>Teacher</th><th>Student</th><th>Class</th><th>Subject</th><th>Mark</th><th>Percentage</th><th>Status</th><th>Submitted</th></tr></thead><tbody>${reports.map(item => `<tr><td>${escapeHtml(item.teacher_name)}</td><td class="student-name">${escapeHtml(item.student_name)}</td><td>${escapeHtml(item.class_name)}</td><td>${escapeHtml(item.subject_name)}</td><td>${item.mark}/${item.max_mark}</td><td class="student-name">${item.percentage}%</td><td><span class="status approved">${escapeHtml(item.status)}</span></td><td>${escapeHtml(item.updated_at)}</td></tr>`).join('') || '<tr><td colspan="8" class="empty">No submitted reports found for that student.</td></tr>'}</tbody></table>`;
       summary.textContent = `${reports.length} submitted report${reports.length === 1 ? '' : 's'} found.`;
     };
@@ -2919,8 +3006,12 @@ async function hydrateSettings() {
     teacherSelect.addEventListener('change', loadSubmitted);
     classSelect.addEventListener('change', loadSubmitted);
     subjectSelect.addEventListener('change', loadSubmitted);
+    let searchTimer;
     searchInput.addEventListener('input', () => {
-      if (searchInput.value.trim() === '') loadSubmitted();
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => loadSubmitted().catch(exception => {
+        container.innerHTML = `<div class="empty" style="color:var(--danger)">${escapeHtml(exception.message)}</div>`;
+      }), 250);
     });
     searchInput.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
