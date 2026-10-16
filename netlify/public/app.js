@@ -2374,15 +2374,25 @@ async function hydrateStudents() {
       apiRequest('/api/classes'),
       apiRequest('/api/academic-years')
     ]);
-    document.querySelector('#new-class').innerHTML = classes.classes.map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('');
-    document.querySelector('#new-year').innerHTML = years.academic_years.map(item => `<option value="${item.id}">${escapeHtml(item.label)}</option>`).join('');
+    const classSelect = document.querySelector('#new-class');
+    const yearSelect = document.querySelector('#new-year');
+    yearSelect.innerHTML = years.academic_years.map(item => `<option value="${item.id}">${escapeHtml(item.label)}</option>`).join('');
+    const updateStudentClassOptions = (selectedClassId = null) => {
+      const matchingClasses = classes.classes.filter(item => String(item.academic_year_id) === yearSelect.value);
+      classSelect.innerHTML = matchingClasses.map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('') || '<option value="">No active classes for this academic year</option>';
+      if (selectedClassId && matchingClasses.some(item => String(item.id) === String(selectedClassId))) {
+        classSelect.value = String(selectedClassId);
+      }
+    };
+    if (years.academic_years.length) yearSelect.value = String(years.academic_years[0].id);
+    updateStudentClassOptions();
     let editingStudentId = null;
     let studentsRecords = response.students;
     const formPanel = document.querySelector('#student-form-panel');
     const setStudentFormMode = (student = null) => {
       editingStudentId = student?.id ?? null;
       document.querySelector('#student-form-title').textContent = student ? 'Edit student profile' : 'Register student';
-      document.querySelector('#student-form-note').textContent = student ? 'Update student details. Class placement and academic history will not change.' : 'The student will be enrolled in the selected class and academic year.';
+      document.querySelector('#student-form-note').textContent = student ? 'Update student details and class placement. Enrollments from other academic years are preserved.' : 'The student will be enrolled in the selected class and academic year.';
       document.querySelector('#save-student').textContent = student ? 'Save changes' : 'Register student';
       document.querySelector('#new-student-id').value = student?.student_id || '';
       document.querySelector('#new-registration-number').value = student?.registration_number || '';
@@ -2391,13 +2401,14 @@ async function hydrateStudents() {
       document.querySelector('#new-date-of-birth').value = student?.date_of_birth ? String(student.date_of_birth).slice(0, 10) : '';
       document.querySelector('#new-guardian-name').value = student?.guardian_name || '';
       document.querySelector('#new-guardian-phone').value = student?.guardian_phone || '';
-      document.querySelector('#new-class').style.display = student ? 'none' : '';
-      document.querySelector('#new-year').style.display = student ? 'none' : '';
+      yearSelect.value = String(student?.academic_year_id || years.academic_years[0]?.id || '');
+      updateStudentClassOptions(student?.class_id);
       document.querySelector('#student-form-message').textContent = '';
       formPanel.style.display = 'block';
     };
     document.querySelector('#register-student').addEventListener('click', () => setStudentFormMode());
     document.querySelector('#cancel-student').addEventListener('click', () => { formPanel.style.display = 'none'; });
+    yearSelect.addEventListener('change', () => updateStudentClassOptions());
     document.querySelector('#save-student').addEventListener('click', async () => {
       const message = document.querySelector('#student-form-message');
       const registrationNumber = normalizeStudentRegistrationNumber(document.querySelector('#new-registration-number').value);
@@ -2414,13 +2425,18 @@ async function hydrateStudents() {
         message.style.color = 'var(--danger)';
         return;
       }
+      if (!classSelect.value || !yearSelect.value) {
+        message.textContent = 'Select a class and academic year.';
+        message.style.color = 'var(--danger)';
+        return;
+      }
 
       try {
-        const body = { student_id: studentId || null, registration_number: registrationNumber, full_name: fullName, gender: document.querySelector('#new-gender').value || null, date_of_birth: document.querySelector('#new-date-of-birth').value || null, guardian_name: document.querySelector('#new-guardian-name').value, guardian_phone: document.querySelector('#new-guardian-phone').value };
+        const body = { student_id: studentId || null, registration_number: registrationNumber, full_name: fullName, gender: document.querySelector('#new-gender').value || null, date_of_birth: document.querySelector('#new-date-of-birth').value || null, guardian_name: document.querySelector('#new-guardian-name').value, guardian_phone: document.querySelector('#new-guardian-phone').value, class_id: Number(classSelect.value), academic_year_id: Number(yearSelect.value) };
         if (editingStudentId) {
           await apiRequest(`/api/admin/students/${editingStudentId}`, { method: 'PATCH', body: JSON.stringify(body) });
         } else {
-          await apiRequest('/api/admin/students', { method: 'POST', body: JSON.stringify({ ...body, class_id: Number(document.querySelector('#new-class').value), academic_year_id: Number(document.querySelector('#new-year').value) }) });
+          await apiRequest('/api/admin/students', { method: 'POST', body: JSON.stringify(body) });
         }
         formPanel.style.display = 'none';
         listPages.students = 1;

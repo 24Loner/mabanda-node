@@ -695,12 +695,9 @@ async function annualReportData(studentId, classId, yearId) {
 
         tableRows += `
           <td>
-            ${
-              mark === null || Number.isNaN(mark)
-                ? '—'
-                : escapeHtml(
-                    `${Number.isInteger(mark) ? mark : mark.toFixed(2)}/${subject.max_mark}`
-                  )
+            ${mark === null || Number.isNaN(mark)
+              ? '—'
+              : `<span${mark < 10 ? ' class="low-mark"' : ''}>${escapeHtml(`${Number.isInteger(mark) ? mark : mark.toFixed(2)}/${subject.max_mark}`)}</span>`
             }
           </td>
         `;
@@ -1248,6 +1245,11 @@ async function annualReportData(studentId, classId, yearId) {
           .results th:first-child,
           .results td:first-child {
             text-align: left;
+          }
+
+          .low-mark {
+            color: #dc2626;
+            font-weight: bold;
           }
 
           .summary {
@@ -2636,11 +2638,18 @@ app.get('/api/admin/students',async(req,res,next)=>{
       req,
       `SELECT
          s.*,
+         cs.class_id,
+         cs.academic_year_id,
          c.name AS class_name,
          ay.label AS academic_year
        FROM students s
-       LEFT JOIN class_students cs
-         ON cs.student_id=s.id
+       LEFT JOIN LATERAL (
+         SELECT class_id,academic_year_id
+         FROM class_students
+         WHERE student_id=s.id
+         ORDER BY academic_year_id DESC,class_id
+         LIMIT 1
+       ) cs ON TRUE
        LEFT JOIN classes c
          ON c.id=cs.class_id
        LEFT JOIN academic_years ay
@@ -2650,20 +2659,28 @@ app.get('/api/admin/students',async(req,res,next)=>{
            OR COALESCE(s.student_id,'') ILIKE '%' || $1 || '%'
            OR s.registration_number ILIKE '%' || $1 || '%'
            OR s.id::text ILIKE '%' || $1 || '%'
-           OR COALESCE(c.name,'') ILIKE '%' || $1 || '%')
+           OR EXISTS (
+             SELECT 1
+             FROM class_students search_cs
+             INNER JOIN classes search_c ON search_c.id=search_cs.class_id
+             WHERE search_cs.student_id=s.id
+               AND search_c.name ILIKE '%' || $1 || '%'
+           ))
        ORDER BY s.full_name,s.id,cs.academic_year_id DESC NULLS LAST,cs.class_id`,
       `SELECT COUNT(*) AS total
        FROM students s
-       LEFT JOIN class_students cs
-         ON cs.student_id=s.id
-       LEFT JOIN classes c
-         ON c.id=cs.class_id
        WHERE s.is_active=TRUE
          AND ($1='' OR s.full_name ILIKE '%' || $1 || '%'
            OR COALESCE(s.student_id,'') ILIKE '%' || $1 || '%'
            OR s.registration_number ILIKE '%' || $1 || '%'
            OR s.id::text ILIKE '%' || $1 || '%'
-           OR COALESCE(c.name,'') ILIKE '%' || $1 || '%')`,
+           OR EXISTS (
+             SELECT 1
+             FROM class_students search_cs
+             INNER JOIN classes search_c ON search_c.id=search_cs.class_id
+             WHERE search_cs.student_id=s.id
+               AND search_c.name ILIKE '%' || $1 || '%'
+           ))`,
       [search]
     );
 
@@ -2767,6 +2784,8 @@ app.patch('/api/admin/students/:id',async(req,res,next)=>{
     const registrationNumber=normalizeRegistrationNumber(b.registration_number);
     const fullName=String(b.full_name||'').trim();
     const gender=b.gender||null;
+    const classId=Number(b.class_id);
+    const academicYearId=Number(b.academic_year_id);
 
     if(!isValidRegistrationNumber(registrationNumber)){
       throw httpError(
@@ -2786,9 +2805,33 @@ app.patch('/api/admin/students/:id',async(req,res,next)=>{
         400
       );
     }
+    if(!Number.isSafeInteger(classId)||classId<1||
+       !Number.isSafeInteger(academicYearId)||academicYearId<1){
+      throw httpError(
+        'Select a valid class and academic year.',
+        400
+      );
+    }
 
     try{
       await tx(async c=>{
+        const placement=(await c.query(
+          `SELECT id
+           FROM classes
+           WHERE id=$1
+             AND academic_year_id=$2
+             AND is_active=TRUE
+           FOR SHARE`,
+          [classId,academicYearId]
+        )).rows[0];
+
+        if(!placement){
+          throw httpError(
+            'Select an active class in the chosen academic year.',
+            400
+          );
+        }
+
         const student=(
           await c.query(
             `SELECT id,full_name
@@ -2826,6 +2869,23 @@ app.patch('/api/admin/students/:id',async(req,res,next)=>{
             String(b.guardian_phone||'').trim()||null,
             req.params.id
           ]
+        );
+
+        await c.query(
+          `DELETE FROM class_students
+           WHERE student_id=$1
+             AND academic_year_id=$2
+             AND class_id<>$3`,
+          [req.params.id,academicYearId,classId]
+        );
+
+        await c.query(
+          `INSERT INTO class_students(
+             class_id,student_id,academic_year_id
+           )
+           VALUES($1,$2,$3)
+           ON CONFLICT(class_id,student_id,academic_year_id) DO NOTHING`,
+          [classId,req.params.id,academicYearId]
         );
 
         await c.query(
