@@ -1718,7 +1718,7 @@ app.post('/api/login',async(req,res,next)=>{
       );
     });
 
-    req.session.user={
+        req.session.user={
       id:Number(user.id),
       full_name:user.full_name,
       email:user.email,
@@ -1728,12 +1728,18 @@ app.post('/api/login',async(req,res,next)=>{
     req.session.csrf=
       crypto.randomBytes(32).toString('hex');
 
+    await new Promise((resolve,reject)=>{
+      req.session.save(err=>{
+        if(err) return reject(err);
+        resolve();
+      });
+    });
+
     json(res,{
       user:req.session.user,
       csrf:req.session.csrf
     });
-
-  }catch(e){
+      }catch(e){
     next(e);
   }
 });
