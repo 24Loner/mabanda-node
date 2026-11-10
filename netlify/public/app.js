@@ -2130,8 +2130,13 @@ async function hydrateResultEntry() {
               sequence_id: Number(sequenceSelect.value)
             })
           });
-          notice.textContent = 'Results submitted for review.';
+                    notice.textContent = 'Results submitted successfully.';
           notice.style.color = 'var(--positive)';
+          window.alert('Results submitted successfully.');
+          rows.forEach(row => {
+            const markInput = row.querySelector('.entry-mark');
+            if (markInput) markInput.value = '';
+          });
         } catch (err) {
           notice.textContent = err.message;
           notice.style.color = 'var(--danger)';

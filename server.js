@@ -358,8 +358,7 @@ async function submitResults(input,user){
   if(user.role==='teacher'){params.push(user.id);sql+=` AND EXISTS (SELECT 1 FROM teacher_subject_classes a WHERE a.teacher_id=$${params.length} AND a.subject_id=r.subject_id AND a.class_id=r.class_id AND a.is_active=TRUE)`;}
   const ids=(await q(sql,params)).rows.map(x=>Number(x.id));
   if(!ids.length) throw httpError('No results found to submit.',422);
-  const expected=Number((await q('SELECT COUNT(*) FROM class_students WHERE class_id=$1 AND academic_year_id=$2',[Number(input.class_id),Number(input.academic_year_id)])).rows[0].count);
-  if(ids.length<expected) throw httpError('Some students do not have results entered for this subject.',422);
+
   const placeholders=ids.map((_,i)=>`$${i+2}`).join(',');
   await q(`UPDATE results SET status='submitted',updated_by=$1 WHERE id IN (${placeholders})`,[user.id,...ids]);
   return {submitted:ids.length};
