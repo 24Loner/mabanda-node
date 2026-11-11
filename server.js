@@ -254,11 +254,32 @@ async function classSummary(classId, yearId, sequenceId) {
     total_failed:ranking.filter(x=>x.average_percentage<40).length};
 }
 async function overview(yearId, average) {
-  const r=await q('SELECT excellent_message,good_message,fail_message FROM school_settings WHERE id=1');
-  const s=r.rows[0]||{};
-  if(average>=80) return s.excellent_message || 'Excellent performance. The student has demonstrated a strong understanding of the subjects covered during this sequence.';
-  if(average>=50) return s.good_message || 'Good performance. The student should continue working consistently, particularly in subjects where improvement is needed.';
-  return s.fail_message || 'The student should work more consistently and seek support in subjects where improvement is needed.';
+  if (
+    average === null ||
+    average === undefined ||
+    !Number.isFinite(average)
+  ) {
+    return 'Pending results. No submitted marks are available for evaluation.';
+  }
+
+  const r = await q(
+    'SELECT excellent_message, good_message, fail_message FROM school_settings WHERE id=1'
+  );
+
+  const s = r.rows[0] || {};
+
+  if (average >= 80) {
+    return s.excellent_message ||
+      'Excellent performance. The student has demonstrated a strong understanding of the subjects covered during this sequence.';
+  }
+
+  if (average >= 50) {
+    return s.good_message ||
+      'Good performance. The student should continue working consistently, particularly in subjects where improvement is needed.';
+  }
+
+  return s.fail_message ||
+    'The student should work more consistently and seek support in subjects where improvement is needed.';
 }
 async function history(studentId) {
   const e=await q(`SELECT cs.class_id,c.name AS class_name,cs.academic_year_id,ay.label AS academic_year
@@ -563,11 +584,12 @@ async function annualReportData(studentId, classId, yearId) {
          r.mark,
          r.sequence_id
        FROM results r
-       INNER JOIN subjects sub
+             INNER JOIN subjects sub
          ON sub.id = r.subject_id
        WHERE r.student_id = $1
          AND r.class_id = $2
          AND r.academic_year_id = $3
+         AND r.status IN ('submitted', 'approved', 'locked')
        ORDER BY sub.name, r.sequence_id`,
       [studentId, classId, yearId]
     )
@@ -591,9 +613,10 @@ async function annualReportData(studentId, classId, yearId) {
         marks: {}
       };
     }
-
     subjects[subjectId].marks[Number(row.sequence_id)] =
-      Number(row.mark);
+      row.mark === null || row.mark === undefined
+        ? null
+        : Number(row.mark);
   }
 
   // ------------------------------------------------------------
@@ -685,10 +708,14 @@ async function annualReportData(studentId, classId, yearId) {
           subject.marks,
           periodId
         );
-
-        const mark = hasMark
-          ? Number(subject.marks[periodId])
+        const rawMark = hasMark
+          ? subject.marks[periodId]
           : null;
+
+        const mark =
+          rawMark === null || rawMark === undefined || rawMark === ''
+            ? null
+            : Number(rawMark);
 
         marks.push(mark);
 
@@ -706,9 +733,9 @@ async function annualReportData(studentId, classId, yearId) {
       // TERM AVERAGE
       // --------------------------------------------------------
 
-      const calculationMarks =
-        marks.map(
-          mark => mark === null ? 0 : mark
+            const calculationMarks =
+        marks.filter(
+          mark => mark !== null && Number.isFinite(mark)
         );
 
       const termAverage =
@@ -725,7 +752,7 @@ async function annualReportData(studentId, classId, yearId) {
               *
               100
             )
-          : 0;
+          : null;
 
       termAverages.push(termAverage);
 
@@ -746,9 +773,9 @@ async function annualReportData(studentId, classId, yearId) {
     // ANNUAL AVERAGE
     // ----------------------------------------------------------
 
-    const annualValues =
-      termAverages.map(
-        value => value === null ? 0 : value
+       const annualValues =
+      termAverages.filter(
+        value => value !== null && Number.isFinite(value)
       );
 
     const annualAverage =
@@ -761,7 +788,7 @@ async function annualReportData(studentId, classId, yearId) {
             /
             annualValues.length
           )
-        : 0;
+        : null;
 
     // ----------------------------------------------------------
     // OVERALL WEIGHTED AVERAGE
@@ -824,7 +851,7 @@ async function annualReportData(studentId, classId, yearId) {
   // STUDENT OVERALL ANNUAL AVERAGE
   // ------------------------------------------------------------
 
-  const annualAverage =
+    const annualAverage =
     overallPossible > 0
       ? round2(
           overallWeight
@@ -833,13 +860,18 @@ async function annualReportData(studentId, classId, yearId) {
           *
           100
         )
-      : 0;
+      : null;
 
   const overallGrade =
-    await grade(
-      yearId,
-      annualAverage
-    );
+    annualAverage === null
+      ? {
+          grade: 'Pending',
+          evaluation: 'Pending'
+        }
+      : await grade(
+          yearId,
+          annualAverage
+        );
 
   // ------------------------------------------------------------
   // CLASS RESULTS
@@ -857,12 +889,13 @@ async function annualReportData(studentId, classId, yearId) {
        FROM results r
        INNER JOIN subjects sub
          ON sub.id = r.subject_id
-       INNER JOIN class_students cs
-         ON cs.student_id = r.student_id
-        AND cs.class_id = r.class_id
-        AND cs.academic_year_id = r.academic_year_id
-       WHERE r.class_id = $1
-         AND r.academic_year_id = $2`,
+      INNER JOIN class_students cs
+  ON cs.student_id = r.student_id
+ AND cs.class_id = r.class_id
+ AND cs.academic_year_id = r.academic_year_id
+WHERE r.class_id = $1
+  AND r.academic_year_id = $2
+  AND r.status IN ('submitted', 'approved', 'locked')`,
       [classId, yearId]
     )
   ).rows;
@@ -894,10 +927,11 @@ async function annualReportData(studentId, classId, yearId) {
 
       };
     }
-
     classSubjects[studentKey][subjectKey]
       .marks[Number(row.sequence_id)] =
-        Number(row.mark);
+        row.mark === null || row.mark === undefined
+          ? null
+          : Number(row.mark);
   }
 
   // ------------------------------------------------------------
@@ -929,18 +963,15 @@ async function annualReportData(studentId, classId, yearId) {
         const marks = [];
 
         for (const period of rows) {
+          const mark =
+            subject.marks[Number(period.id)];
 
           if (
-            subject.marks[
-              Number(period.id)
-            ] !== undefined
+            mark !== null &&
+            mark !== undefined &&
+            Number.isFinite(mark)
           ) {
-
-            marks.push(
-              subject.marks[
-                Number(period.id)
-              ]
-            );
+            marks.push(mark);
           }
         }
 
@@ -1004,11 +1035,13 @@ async function annualReportData(studentId, classId, yearId) {
         )
       : 0;
 
-  const position =
-    1 +
-    classAverages.filter(
-      value => value > annualAverage
-    ).length;
+   const position =
+    annualAverage === null
+      ? null
+      : 1 +
+        classAverages.filter(
+          value => value > annualAverage
+        ).length;
 
   // ------------------------------------------------------------
   // SCHOOL SETTINGS
@@ -1346,35 +1379,34 @@ async function annualReportData(studentId, classId, yearId) {
 
         <div class="summary">
 
-          <b>Student average:</b>
-          ${annualAverage}%
+  <b>Student average:</b>
+  ${annualAverage === null ? '—' : `${annualAverage}%`}
 
-          &nbsp;
+  &nbsp;
 
-          <b>Class average:</b>
-          ${classAverage}%
+  <b>Class average:</b>
+  ${classAverages.length ? `${classAverage}%` : '—'}
 
-          &nbsp;
+  &nbsp;
 
-          <b>Position:</b>
-          ${position} / ${classAverages.length}
+  <b>Position:</b>
+  ${position === null ? '—' : `${position} / ${classAverages.length}`}
 
-          <br>
+  <br>
 
-          <b>Grade:</b>
-          ${escapeHtml(
-            overallGrade.grade || 'Pending'
-          )} &bull;
+  <b>Grade:</b>
+  ${escapeHtml(
+    overallGrade.grade || 'Pending'
+  )} &bull;
 
-          ${escapeHtml(
-            overallGrade.evaluation || 'Pending'
-          )}
+  ${escapeHtml(
+    overallGrade.evaluation || 'Pending'
+  )}
+</div>
 
-        </div>
+<div class="remarks">
 
-        <div class="remarks">
-
-          <b>General performance:</b>
+  <b>General performance:</b>
           ${escapeHtml(
             await overview(
               yearId,
