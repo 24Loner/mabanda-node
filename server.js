@@ -407,8 +407,9 @@ async function analyticsSubmitted(yearId,termId,sequenceId,teacherId,classId,sub
   if(teacherId) add('r.entered_by=?',teacherId); if(classId) add('r.class_id=?',classId); if(subjectId) add('r.subject_id=?',subjectId);
   if(search){params.push(`%${search}%`);const searchParam=`$${params.length}`;where+=` AND (st.full_name ILIKE ${searchParam} OR COALESCE(st.student_id,'') ILIKE ${searchParam} OR st.registration_number ILIKE ${searchParam} OR st.id::text ILIKE ${searchParam})`;}
   return (await q(`SELECT r.id,r.mark,r.status,r.updated_at,st.full_name AS student_name,st.registration_number AS student_number,c.name AS class_name,sub.name AS subject_name,u.full_name AS teacher_name,seq.name AS sequence_name,term.name AS term_name,ay.label AS academic_year,sub.max_mark,ROUND((r.mark/sub.max_mark*100)::numeric,2) AS percentage
-    FROM results r INNER JOIN students st ON st.id=r.student_id INNER JOIN classes c ON c.id=r.class_id INNER JOIN subjects sub ON sub.id=r.subject_id INNER JOIN users u ON u.id=r.entered_by INNER JOIN sequences seq ON seq.id=r.sequence_id INNER JOIN terms term ON term.id=r.term_id INNER JOIN academic_years ay ON ay.id=r.academic_year_id WHERE ${where} ORDER BY c.name,st.full_name,sub.name`,params)).rows;
+  FROM results r INNER JOIN students st ON st.id=r.student_id INNER JOIN classes c ON c.id=r.class_id INNER JOIN subjects sub ON sub.id=r.subject_id LEFT JOIN users u ON u.id=r.entered_by INNER JOIN sequences seq ON seq.id=r.sequence_id INNER JOIN terms term ON term.id=r.term_id INNER JOIN academic_years ay ON ay.id=r.academic_year_id WHERE ${where} ORDER BY c.name,st.full_name,sub.name`,params)).rows;
 }
+
 async function analyticsStudentReports(req,yearId,termId,sequenceId,classId,search=''){
   let where=`r.academic_year_id=$1 AND r.term_id=$2 AND r.sequence_id=$3`;const params=[yearId,termId,sequenceId];
   if(classId){params.push(classId);where+=` AND r.class_id=$${params.length}`;}
