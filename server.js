@@ -1441,7 +1441,7 @@ WHERE r.class_id = $1
             <td class="signature">
               Principal Signature &bull;
               ${escapeHtml(
-                settings.principal_name || ''
+                'Nforbe Ndekentang'
               )}
             </td>
 
