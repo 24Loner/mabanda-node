@@ -36,7 +36,7 @@ SELECT ay.id,t.id,'Final Exam',2 FROM academic_years ay JOIN terms t ON t.academ
 ON CONFLICT(academic_year_id,term_id,name) DO NOTHING;
 
 INSERT INTO school_settings(id,school_name,motto,address,email,principal_name,excellent_message,good_message,fail_message,teacher_report_card_access)
-VALUES(1,'ATLANTIC BILINGUAL COLLEGE MABANDA','Knowledge, character, excellence','Mabanda, Cameroon','office@mabanda.edu','Dr. Alice Nfor',
+VALUES(1,'ATLANTIC BILINGUAL COLLEGE MABANDA','Knowledge, character, excellence','Mabanda, Cameroon','office@mabanda.edu','Nforbe Ndekentang',
 'Excellent performance. The student has demonstrated a strong understanding of the subjects covered during this sequence.',
 'Good performance. The student should continue working consistently, particularly in subjects where improvement is needed.',
 'The student should work more consistently and seek support in subjects where improvement is needed.',FALSE)
