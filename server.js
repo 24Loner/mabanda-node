@@ -590,7 +590,6 @@ async function annualReportData(studentId, classId, yearId) {
        WHERE r.student_id = $1
          AND r.class_id = $2
          AND r.academic_year_id = $3
-         AND r.status IN ('submitted', 'approved', 'locked')
        ORDER BY sub.name, r.sequence_id`,
       [studentId, classId, yearId]
     )
