@@ -2082,7 +2082,7 @@ async function hydrateResultEntry() {
       const rows = [...document.querySelectorAll('#result-students tr[data-student-id]')];
       rows.forEach(r => r.style.outline = '');
       const values = rows.map(row => ({ row, markStr: row.querySelector('.entry-mark').value.trim() })).filter(item => item.markStr !== '');
-      if (!values.length) {
+      if (!values.length && !submit) {
         notice.textContent = 'No marks entered to save.';
         notice.style.color = 'var(--warning)';
         return;
@@ -2120,7 +2120,7 @@ async function hydrateResultEntry() {
       if (hasError) return;
       if (submit) {
         try {
-          await apiRequest('/api/results/submit', {
+          const submissionResponse = await apiRequest('/api/results/submit', {
             method: 'POST',
             body: JSON.stringify({
               subject_id: Number(subjectSelect.value),
@@ -2130,9 +2130,10 @@ async function hydrateResultEntry() {
               sequence_id: Number(sequenceSelect.value)
             })
           });
-                    notice.textContent = 'Results submitted successfully.';
+                    const emptySheet = Boolean(submissionResponse && submissionResponse.result && submissionResponse.result.empty);
+          notice.textContent = emptySheet ? 'Empty result sheet submitted successfully. No student marks were recorded.' : 'Results submitted successfully.';
           notice.style.color = 'var(--positive)';
-          window.alert('Results submitted successfully.');
+          window.alert(notice.textContent);
           rows.forEach(row => {
             const markInput = row.querySelector('.entry-mark');
             if (markInput) markInput.value = '';

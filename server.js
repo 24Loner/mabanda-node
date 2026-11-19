@@ -374,11 +374,15 @@ async function submitResults(input,user){
   for(const f of ['class_id','subject_id','academic_year_id','term_id','sequence_id']) if(!(f in input)||input[f]==='') throw httpError(`Missing field: ${f}.`,422);
   const fin=await q('SELECT is_reopened FROM result_finalizations WHERE academic_year_id=$1 AND term_id=$2 AND sequence_id=$3 LIMIT 1',[Number(input.academic_year_id),Number(input.term_id),Number(input.sequence_id)]);
   if(fin.rowCount&&!fin.rows[0].is_reopened&&user.role!=='administrator') throw httpError('This sequence has been finalized and cannot be submitted.',423);
+  if(user.role==='teacher'){
+    const assignment=await q('SELECT 1 FROM teacher_subject_classes WHERE teacher_id=$1 AND subject_id=$2 AND class_id=$3 AND is_active=TRUE LIMIT 1',[user.id,Number(input.subject_id),Number(input.class_id)]);
+    if(!assignment.rowCount) throw httpError('Unauthorized: you are not assigned to teach this subject for this class.',403);
+  }
   let sql=`SELECT r.id FROM results r WHERE r.class_id=$1 AND r.subject_id=$2 AND r.sequence_id=$3 AND r.academic_year_id=$4 AND r.term_id=$5`;
   const params=[Number(input.class_id),Number(input.subject_id),Number(input.sequence_id),Number(input.academic_year_id),Number(input.term_id)];
   if(user.role==='teacher'){params.push(user.id);sql+=` AND EXISTS (SELECT 1 FROM teacher_subject_classes a WHERE a.teacher_id=$${params.length} AND a.subject_id=r.subject_id AND a.class_id=r.class_id AND a.is_active=TRUE)`;}
   const ids=(await q(sql,params)).rows.map(x=>Number(x.id));
-  if(!ids.length) throw httpError('No results found to submit.',422);
+  if(!ids.length) return {submitted:0,empty:true,message:'Empty result sheet submitted successfully. No student marks were recorded.'};
 
   const placeholders=ids.map((_,i)=>`$${i+2}`).join(',');
   await q(`UPDATE results SET status='submitted',updated_by=$1 WHERE id IN (${placeholders})`,[user.id,...ids]);
@@ -590,6 +594,7 @@ async function annualReportData(studentId, classId, yearId) {
        WHERE r.student_id = $1
          AND r.class_id = $2
          AND r.academic_year_id = $3
+          AND r.mark IS NOT NULL
        ORDER BY sub.name, r.sequence_id`,
       [studentId, classId, yearId]
     )
