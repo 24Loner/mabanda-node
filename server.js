@@ -900,7 +900,7 @@ async function annualReportData(studentId, classId, yearId) {
  AND cs.academic_year_id = r.academic_year_id
 WHERE r.class_id = $1
   AND r.academic_year_id = $2
-  AND r.status IN ('submitted', 'approved', 'locked')`,
+  `,
       [classId, yearId]
     )
   ).rows;
