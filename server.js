@@ -944,10 +944,11 @@ WHERE r.class_id = $1
   // ------------------------------------------------------------
 
   const classAverages = [];
+  let reportStudentIncluded = false;
 
   for (
-    const studentSubjects
-    of Object.values(classSubjects)
+    const [classStudentId, studentSubjects]
+    of Object.entries(classSubjects)
   ) {
 
     let weight = 0;
@@ -1018,13 +1019,18 @@ WHERE r.class_id = $1
 
     if (possible > 0) {
 
-      classAverages.push(
-        weight / possible * 100
-      );
+      const rankStudentId = Number(classStudentId);
+      const rankAverage = rankStudentId === Number(studentId) && annualAverage !== null ? annualAverage : weight / possible * 100;
+      classAverages.push(rankAverage);
+      if (rankStudentId === Number(studentId)) reportStudentIncluded = true;
     }
   }
 
   // ------------------------------------------------------------
+  if (annualAverage !== null && !reportStudentIncluded) {
+    classAverages.push(annualAverage);
+  }
+
   // CLASS AVERAGE + POSITION
   // ------------------------------------------------------------
 
